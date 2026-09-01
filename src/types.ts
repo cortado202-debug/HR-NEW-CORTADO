@@ -47,6 +47,8 @@ export interface Employee {
   assignedShiftId?: string; // e.g. 'shift-morning' or 'shift-evening'
   maxMonthlyAdvance?: number; // Max SYP advance limit for this employee
   pin?: string; // Quick personal login PIN for employee self-service
+  username?: string; // Custom login username for employee
+  password?: string; // Custom login password for employee
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'half_day' | 'excused';

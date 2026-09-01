@@ -106,7 +106,11 @@ class AuthService {
     // 2. Search in Employees collection for Employee Portal
     const data = syncService.getData();
     const matchedEmp = data.employees.find(
-      (e) => (e.name.toLowerCase() === cleanUser || (e.phone && e.phone.trim() === cleanUser)) && e.active
+      (e) => (
+        (e.username && e.username.trim().toLowerCase() === cleanUser) ||
+        e.name.toLowerCase() === cleanUser || 
+        (e.phone && e.phone.trim().toLowerCase() === cleanUser)
+      ) && e.active
     );
 
     if (matchedEmp) {
@@ -114,15 +118,21 @@ class AuthService {
         return { success: false, message: 'هذا الحساب خاص بموظف، يرجى تسجيل الدخول من بوابة الموظفين' };
       }
 
-      // Check default employee password '123' or PIN or last 4 digits of phone
-      const allowedPasswords = ['123', matchedEmp.pin, matchedEmp.phone?.slice(-4)].filter(Boolean);
+      // Check custom password, default '123', PIN or last 4 digits of phone
+      const allowedPasswords = [
+        matchedEmp.password,
+        '123', 
+        matchedEmp.pin, 
+        matchedEmp.phone?.slice(-4)
+      ].filter(Boolean);
+
       if (!allowedPasswords.includes(cleanPass)) {
         return { success: false, message: 'كلمة المرور غير صحيحة' };
       }
 
       const empUser: UserAccount = {
         id: `emp-usr-${matchedEmp.id}`,
-        username: matchedEmp.phone || matchedEmp.name,
+        username: matchedEmp.username || matchedEmp.phone || matchedEmp.name,
         displayName: matchedEmp.name,
         role: 'employee',
         employeeId: matchedEmp.id,

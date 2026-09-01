@@ -25,6 +25,9 @@ import {
   CalendarCheck2,
   ShieldCheck,
   KeyRound,
+  Key,
+  Copy,
+  CheckCheck,
   Lock,
   UserCheck,
   Eye,
@@ -131,8 +134,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [empLateRatePerHourRaw, setEmpLateRatePerHourRaw] = useState<string>('');
   const [empAssignedShiftId, setEmpAssignedShiftId] = useState<string>('');
   const [empMaxAdvanceRaw, setEmpMaxAdvanceRaw] = useState<string>('');
+  const [empUsername, setEmpUsername] = useState<string>('');
+  const [empPassword, setEmpPassword] = useState<string>('123');
+  const [showEmpFormPassword, setShowEmpFormPassword] = useState<boolean>(false);
+  const [empPin, setEmpPin] = useState<string>('1234');
   const [isSavingEmployee, setIsSavingEmployee] = useState<boolean>(false);
   const [showEmployeeForm, setShowEmployeeForm] = useState<boolean>(false);
+
+  // Quick Employee Credentials Viewer Modal State
+  const [viewingCredentialsEmp, setViewingCredentialsEmp] = useState<Employee | null>(null);
+  const [showCredPassword, setShowCredPassword] = useState<boolean>(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // In-app Confirmation Modal & Toast State
   const [confirmModalConfig, setConfirmModalConfig] = useState<{
@@ -309,6 +321,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setShifts(shifts.filter((s) => s.id !== id));
   };
 
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
   // Open Add Employee Form
   const handleStartAddEmployee = () => {
     setEditingEmployee(null);
@@ -316,11 +334,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setEmpJobTitle('');
     setEmpPhone('');
     setEmpSalaryRaw('');
-    setEmpWorkDays(defaultWorkDays);
-    setEmpWorkHours(defaultWorkHours);
-    setEmpAbsentMultiplier(absentMultiplier);
+    setEmpWorkDays(defaultWorkDays || 26);
+    setEmpWorkHours(defaultWorkHours || 8);
+    setEmpAbsentMultiplier(absentMultiplier || 1.0);
     setEmpAssignedShiftId('');
     setEmpMaxAdvanceRaw('');
+    setEmpUsername('');
+    setEmpPassword('123');
+    setShowEmpFormPassword(false);
+    setEmpPin('1234');
     setShowEmployeeForm(true);
   };
 
@@ -331,11 +353,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setEmpJobTitle(emp.jobTitle);
     setEmpPhone(emp.phone || '');
     setEmpSalaryRaw(new Intl.NumberFormat('en-US').format(emp.baseSalary));
-    setEmpWorkDays(emp.monthlyWorkDays || defaultWorkDays);
-    setEmpWorkHours(emp.dailyWorkHours || defaultWorkHours);
-    setEmpAbsentMultiplier(emp.absentDeductionRate || absentMultiplier);
+    setEmpWorkDays(emp.monthlyWorkDays || defaultWorkDays || 26);
+    setEmpWorkHours(emp.dailyWorkHours || defaultWorkHours || 8);
+    setEmpAbsentMultiplier(emp.absentDeductionRate || absentMultiplier || 1.0);
     setEmpAssignedShiftId(emp.assignedShiftId || '');
     setEmpMaxAdvanceRaw(emp.maxMonthlyAdvance ? new Intl.NumberFormat('en-US').format(emp.maxMonthlyAdvance) : '');
+    setEmpUsername(emp.username || emp.name);
+    setEmpPassword(emp.password || '123');
+    setShowEmpFormPassword(false);
+    setEmpPin(emp.pin || '1234');
     setShowEmployeeForm(true);
   };
 
@@ -360,16 +386,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         jobTitle: empJobTitle.trim() || 'موظف',
         phone: empPhone.trim() || undefined,
         baseSalary: salary,
-        monthlyWorkDays: Number(empWorkDays),
-        dailyWorkHours: Number(empWorkHours),
-        absentDeductionRate: Number(empAbsentMultiplier),
+        monthlyWorkDays: Number(empWorkDays) || 26,
+        dailyWorkHours: Number(empWorkHours) || 8,
+        absentDeductionRate: Number(empAbsentMultiplier) || 1.0,
         assignedShiftId: empAssignedShiftId || undefined,
         maxMonthlyAdvance: empMaxAdvanceRaw ? parseSYPInput(empMaxAdvanceRaw) : undefined,
+        username: empUsername.trim() || undefined,
+        password: empPassword.trim() || '123',
+        pin: empPin.trim() || '1234',
         active: editingEmployee ? editingEmployee.active : true,
         joinedDate: editingEmployee?.joinedDate || getTodayDateString(),
         avatarColor: editingEmployee?.avatarColor || 'bg-slate-700',
       });
       setShowEmployeeForm(false);
+      triggerToast(editingEmployee ? `تم تعديل بيانات وراتب الموظف "${empName.trim()}" بنجاح` : `تمت إضافة الموظف "${empName.trim()}" بنجاح`);
     } catch (err) {
       alert('حدث خطأ أثناء حفظ بيانات الموظف');
     } finally {
@@ -648,141 +678,451 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {activeTab === 'employees' && (
             <div className="flex flex-col gap-4">
               
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">سجل الموظفين والرواتب والشفتات</h3>
-                  <p className="text-xs text-slate-500">
-                    يمكنك تعديل الراتب الأساسي (SYP)، تعيين الشفت المفضل، وتحديد سقف سلف مخصص
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-emerald-600" />
+                    <span>إدارة الموظفين والرواتب والدوام وبيانات الدخول</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    يمكنك تعديل رواتب الموظفين (SYP)، ساعات وأيام الدوام، الشفتات، وكشف أو تعيين اسم المستخدم وكلمة المرور
                   </p>
                 </div>
                 <button
                   onClick={handleStartAddEmployee}
                   id="btn-add-employee"
-                  className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0"
                 >
                   <Plus className="w-4 h-4 text-emerald-400" />
                   <span>إضافة موظف جديد</span>
                 </button>
               </div>
 
+              {/* Quick Employee Credentials Viewer Modal */}
+              {viewingCredentialsEmp && (
+                <div className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+                  <div className="bg-white w-full max-w-md rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-scaleUp">
+                    <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+                          <Key className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold">بيانات تسجيل دخول الموظف</h4>
+                          <p className="text-[11px] text-slate-300">{viewingCredentialsEmp.name}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setViewingCredentialsEmp(null);
+                          setShowCredPassword(false);
+                        }}
+                        className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="p-5 flex flex-col gap-4">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-start gap-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <span>يستخدم الموظف هذه البيانات للدخول من <strong>بوابة الموظفين</strong> ومسح كود الباركود للحضور والاطلاع على حسابه.</span>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        {/* Username */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 block uppercase">اسم المستخدم للدخول</span>
+                            <span className="text-sm font-mono font-bold text-slate-900">
+                              {viewingCredentialsEmp.username || viewingCredentialsEmp.name}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(viewingCredentialsEmp.username || viewingCredentialsEmp.name, 'username')}
+                            className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 text-xs"
+                            title="نسخ اسم المستخدم"
+                          >
+                            {copiedField === 'username' ? (
+                              <>
+                                <CheckCheck className="w-4 h-4 text-emerald-600" />
+                                <span className="text-[11px] text-emerald-600 font-bold">تم النسخ</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4" />
+                                <span className="text-[11px]">نسخ</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Password with eye toggle */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 block uppercase">كلمة المرور (الباسورد)</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-mono font-bold text-slate-900">
+                                {showCredPassword ? (viewingCredentialsEmp.password || '123') : '••••••••'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setShowCredPassword(!showCredPassword)}
+                                className="text-slate-400 hover:text-slate-700 p-1"
+                                title={showCredPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                              >
+                                {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-emerald-600" />}
+                              </button>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(viewingCredentialsEmp.password || '123', 'password')}
+                            className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 text-xs"
+                            title="نسخ كلمة المرور"
+                          >
+                            {copiedField === 'password' ? (
+                              <>
+                                <CheckCheck className="w-4 h-4 text-emerald-600" />
+                                <span className="text-[11px] text-emerald-600 font-bold">تم النسخ</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4" />
+                                <span className="text-[11px]">نسخ</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* PIN Code */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 block uppercase">رمز PIN السريع</span>
+                            <span className="text-sm font-mono font-bold text-slate-900">
+                              {viewingCredentialsEmp.pin || '1234'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(viewingCredentialsEmp.pin || '1234', 'pin')}
+                            className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 text-xs"
+                            title="نسخ رمز PIN"
+                          >
+                            {copiedField === 'pin' ? (
+                              <>
+                                <CheckCheck className="w-4 h-4 text-emerald-600" />
+                                <span className="text-[11px] text-emerald-600 font-bold">تم النسخ</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4" />
+                                <span className="text-[11px]">نسخ</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const emp = viewingCredentialsEmp;
+                            setViewingCredentialsEmp(null);
+                            handleStartEditEmployee(emp);
+                          }}
+                          className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <Edit3 className="w-4 h-4 text-emerald-400" />
+                          <span>تعديل الراتب والدوام وكلمة المرور</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewingCredentialsEmp(null)}
+                          className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+                        >
+                          إغلاق
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Employee Add / Edit Modal Overlay */}
               {showEmployeeForm && (
-                <div className="bg-white p-4 sm:p-5 rounded-xl border-2 border-slate-900 shadow-md animate-fadeIn">
-                  <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-emerald-600" />
-                      {editingEmployee ? `تعديل بيانات: ${editingEmployee.name}` : 'إضافة موظف جديد'}
-                    </h4>
-                    <button
-                      onClick={() => setShowEmployeeForm(false)}
-                      className="text-slate-400 hover:text-slate-700"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <form onSubmit={handleSaveEmployeeForm} className="flex flex-col gap-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-700">اسم الموظف الثلاثي <span className="text-rose-500">*</span></label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="مثال: أحمد محمد الأحمد"
-                          value={empName}
-                          onChange={(e) => setEmpName(e.target.value)}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
-                        />
+                <div className="fixed inset-0 z-[75] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn">
+                  <div className="bg-white w-full max-w-2xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+                    
+                    {/* Modal Header */}
+                    <div className="bg-slate-900 text-white p-4 sm:px-6 flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
+                          <Users className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm sm:text-base font-bold">
+                            {editingEmployee ? `تعديل بيانات وراتب الموظف: ${editingEmployee.name}` : 'إضافة موظف جديد للنظام'}
+                          </h4>
+                          <p className="text-[11px] text-slate-300">
+                            تحديد الراتب، أوقات الدوام، الشفتات، وبيانات تسجيل الدخول وكلمة المرور
+                          </p>
+                        </div>
                       </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-700">المسمى الوظيفي والصفة</label>
-                        <input
-                          type="text"
-                          placeholder="مثال: محاسب عام / أمين مستودع"
-                          value={empJobTitle}
-                          onChange={(e) => setEmpJobTitle(e.target.value)}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-700">الراتب الأساسي (ل.س) <span className="text-rose-500">*</span></label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="مثال: 4,500,000"
-                          value={empSalaryRaw}
-                          onChange={(e) => {
-                            const val = parseSYPInput(e.target.value);
-                            setEmpSalaryRaw(val ? new Intl.NumberFormat('en-US').format(val) : '');
-                          }}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-700">رقم الهاتف والتواصل</label>
-                        <input
-                          type="tel"
-                          placeholder="09XXXXXXXX"
-                          value={empPhone}
-                          onChange={(e) => setEmpPhone(e.target.value)}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-semibold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-700">الشفت الافتراضي للموظف</label>
-                        <select
-                          value={empAssignedShiftId}
-                          onChange={(e) => setEmpAssignedShiftId(e.target.value)}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
-                        >
-                          <option value="">تحديد تلقائي لأقرب شفت</option>
-                          {shifts.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name} ({s.startTime} - {s.endTime})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs font-bold text-slate-700">سقف السلف الشهري المخصص (ل.س)</label>
-                        <input
-                          type="text"
-                          placeholder="اتركه فارغاً للاعتماد على السقف العام"
-                          value={empMaxAdvanceRaw}
-                          onChange={(e) => {
-                            const val = parseSYPInput(e.target.value);
-                            setEmpMaxAdvanceRaw(val ? new Intl.NumberFormat('en-US').format(val) : '');
-                          }}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
-                        />
-                      </div>
-
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                       <button
-                        type="button"
                         onClick={() => setShowEmployeeForm(false)}
-                        className="px-4 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-lg"
+                        className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
                       >
-                        إلغاء
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isSavingEmployee}
-                        className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
-                      >
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>{isSavingEmployee ? 'جاري الحفظ...' : 'حفظ الموظف'}</span>
+                        <X className="w-5 h-5" />
                       </button>
                     </div>
-                  </form>
+
+                    {/* Modal Scrollable Body */}
+                    <form onSubmit={handleSaveEmployeeForm} className="p-4 sm:p-6 overflow-y-auto flex flex-col gap-5">
+                      
+                      {/* Section 1: Basic Info */}
+                      <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/80 flex flex-col gap-3.5">
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 pb-2 border-b border-slate-200">
+                          <Briefcase className="w-4 h-4 text-emerald-600" />
+                          <span>1. البيانات الأساسية للموظف</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="flex flex-col gap-1 sm:col-span-1">
+                            <label className="text-xs font-bold text-slate-700">اسم الموظف الثلاثي <span className="text-rose-500">*</span></label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="مثال: أحمد محمد الأحمد"
+                              value={empName}
+                              onChange={(e) => setEmpName(e.target.value)}
+                              className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-slate-900"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1 sm:col-span-1">
+                            <label className="text-xs font-bold text-slate-700">المسمى الوظيفي والصفة</label>
+                            <input
+                              type="text"
+                              placeholder="مثال: محاسب عام / فني"
+                              value={empJobTitle}
+                              onChange={(e) => setEmpJobTitle(e.target.value)}
+                              className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-slate-900"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1 sm:col-span-1">
+                            <label className="text-xs font-bold text-slate-700">رقم الهاتف / الجوال</label>
+                            <input
+                              type="tel"
+                              placeholder="09XXXXXXXX"
+                              value={empPhone}
+                              onChange={(e) => setEmpPhone(e.target.value)}
+                              className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-semibold outline-none focus:ring-2 focus:ring-slate-900"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 2: Salary & Work Schedule */}
+                      <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/80 flex flex-col gap-3.5">
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 pb-2 border-b border-slate-200">
+                          <Banknote className="w-4 h-4 text-emerald-600" />
+                          <span>2. الراتب وأوقات وساعات الدوام (ل.س)</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-bold text-slate-700">الراتب الأساسي الشهري (ل.س) <span className="text-rose-500">*</span></label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                required
+                                placeholder="مثال: 4,500,000"
+                                value={empSalaryRaw}
+                                onChange={(e) => {
+                                  const val = parseSYPInput(e.target.value);
+                                  setEmpSalaryRaw(val ? new Intl.NumberFormat('en-US').format(val) : '');
+                                }}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-slate-900 pr-3 pl-12"
+                              />
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">ل.س</span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-bold text-slate-700">الشفت الافتراضي للموظف</label>
+                            <select
+                              value={empAssignedShiftId}
+                              onChange={(e) => setEmpAssignedShiftId(e.target.value)}
+                              className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-slate-900"
+                            >
+                              <option value="">تحديد تلقائي لأقرب شفت</option>
+                              {shifts.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name} ({s.startTime} - {s.endTime})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                              <span>ساعات الدوام اليومية (ساعات/يوم)</span>
+                              <span className="text-[10px] text-slate-400 font-normal">الافتراضي: {defaultWorkHours} ساعات</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="1"
+                                max="24"
+                                required
+                                value={empWorkHours}
+                                onChange={(e) => setEmpWorkHours(Number(e.target.value))}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-slate-900"
+                              />
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">ساعة</span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                              <span>أيام العمل الشهرية (أيام/شهر)</span>
+                              <span className="text-[10px] text-slate-400 font-normal">الافتراضي: {defaultWorkDays} يوم</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="1"
+                                max="31"
+                                required
+                                value={empWorkDays}
+                                onChange={(e) => setEmpWorkDays(Number(e.target.value))}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-slate-900"
+                              />
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">يوم</span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-bold text-slate-700">سقف السلف الشهري المخصص (ل.س)</label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                placeholder="اتركه فارغاً للاعتماد على السقف العام"
+                                value={empMaxAdvanceRaw}
+                                onChange={(e) => {
+                                  const val = parseSYPInput(e.target.value);
+                                  setEmpMaxAdvanceRaw(val ? new Intl.NumberFormat('en-US').format(val) : '');
+                                }}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-slate-900 pr-3 pl-12"
+                              />
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">ل.س</span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-bold text-slate-700">معدل خصم يوم الغياب (أيام)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0.5"
+                              max="3"
+                              value={empAbsentMultiplier}
+                              onChange={(e) => setEmpAbsentMultiplier(Number(e.target.value))}
+                              className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-slate-900"
+                            />
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {/* Section 3: Login Credentials & Password */}
+                      <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-200/80 flex flex-col gap-3.5">
+                        <div className="text-xs font-bold text-slate-900 flex items-center justify-between pb-2 border-b border-emerald-200/60">
+                          <div className="flex items-center gap-1.5">
+                            <KeyRound className="w-4 h-4 text-emerald-600" />
+                            <span>3. بيانات تسجيل الدخول لبوابة الموظف وكلمة المرور</span>
+                          </div>
+                          <span className="text-[10px] text-emerald-800 font-normal">دخول خاص بالموظف</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          
+                          <div className="flex flex-col gap-1 sm:col-span-1">
+                            <label className="text-xs font-bold text-slate-700">اسم المستخدم للدخول</label>
+                            <input
+                              type="text"
+                              placeholder={empName || 'اسم الموظف'}
+                              value={empUsername}
+                              onChange={(e) => setEmpUsername(e.target.value)}
+                              className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-semibold outline-none focus:ring-2 focus:ring-emerald-600"
+                            />
+                            <span className="text-[10px] text-slate-400">إذا ترك فارغاً يمكنه الدخول باسمه أو هاتفه</span>
+                          </div>
+
+                          <div className="flex flex-col gap-1 sm:col-span-1">
+                            <label className="text-xs font-bold text-slate-700">كلمة المرور (الباسورد)</label>
+                            <div className="relative">
+                              <input
+                                type={showEmpFormPassword ? 'text' : 'password'}
+                                required
+                                value={empPassword}
+                                onChange={(e) => setEmpPassword(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-emerald-600 pr-3 pl-9"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowEmpFormPassword(!showEmpFormPassword)}
+                                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5"
+                                title={showEmpFormPassword ? 'إخفاء' : 'إظهار'}
+                              >
+                                {showEmpFormPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-emerald-600" />}
+                              </button>
+                            </div>
+                            <span className="text-[10px] text-slate-400">الافتراضي: 123</span>
+                          </div>
+
+                          <div className="flex flex-col gap-1 sm:col-span-1">
+                            <label className="text-xs font-bold text-slate-700">رمز PIN السريع</label>
+                            <input
+                              type="text"
+                              maxLength={6}
+                              placeholder="1234"
+                              value={empPin}
+                              onChange={(e) => setEmpPin(e.target.value)}
+                              className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-emerald-600"
+                            />
+                            <span className="text-[10px] text-slate-400">الافتراضي: 1234</span>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {/* Modal Footer Actions */}
+                      <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setShowEmployeeForm(false)}
+                          className="px-4 py-2.5 border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl transition-colors"
+                        >
+                          إلغاء
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSavingEmployee}
+                          className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                        >
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span>{isSavingEmployee ? 'جاري حفظ البيانات...' : (editingEmployee ? 'حفظ وتحديث التعديلات' : 'إضافة الموظف الآن')}</span>
+                        </button>
+                      </div>
+
+                    </form>
+                  </div>
                 </div>
               )}
 
@@ -796,7 +1136,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <div>
                       <h4 className="text-sm font-bold text-slate-800">لا يوجد موظفون مسجلون حالياً</h4>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        ابدأ بإضافة موظفيك وتحديد رواتبهم وشفتاتهم لبدء تسجيل الحضور والسلف
+                        ابدأ بإضافة موظفيك وتحديد رواتبهم وشفتاتهم وكلمات المرور لبدء تسجيل الحضور والسلف
                       </p>
                     </div>
                     <button
@@ -808,72 +1148,106 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <table className="w-full text-right text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-[#F8FAFC] text-slate-700 font-bold border-b border-slate-200 text-[11px]">
-                        <th className="p-3">الموظف</th>
-                        <th className="p-3">المسمى الوظيفي</th>
-                        <th className="p-3">الراتب الأساسي</th>
-                        <th className="p-3">الشفت المخصص</th>
-                        <th className="p-3">سقف السلف الشهري</th>
-                        <th className="p-3 text-center">الإجراءات</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {employees.map((emp) => {
-                        const shift = shifts.find((s) => s.id === emp.assignedShiftId);
-                        const limit = emp.maxMonthlyAdvance || settings.maxAdvancePerMonth || 2000000;
-                        return (
-                          <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-3 font-bold text-slate-900">
-                              {emp.name}
-                              {emp.phone && <div className="text-[10px] text-slate-400 font-mono">{emp.phone}</div>}
-                            </td>
-                            <td className="p-3 text-slate-600">{emp.jobTitle}</td>
-                            <td className="p-3 font-mono font-bold text-emerald-800">{formatSYP(emp.baseSalary)}</td>
-                            <td className="p-3 text-slate-700">{shift ? shift.name : 'تلقائي حسب الوقت'}</td>
-                            <td className="p-3 font-mono font-bold text-slate-700">{formatSYP(limit)}</td>
-                            <td className="p-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-[#F8FAFC] text-slate-700 font-bold border-b border-slate-200 text-[11px]">
+                          <th className="p-3">الموظف</th>
+                          <th className="p-3">المسمى الوظيفي</th>
+                          <th className="p-3">الراتب الأساسي</th>
+                          <th className="p-3">ساعات وأيام الدوام</th>
+                          <th className="p-3">الشفت المخصص</th>
+                          <th className="p-3 text-center">بيانات الدخول</th>
+                          <th className="p-3 text-center">الإجراءات</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {employees.map((emp) => {
+                          const shift = shifts.find((s) => s.id === emp.assignedShiftId);
+                          return (
+                            <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="p-3 font-bold text-slate-900">
+                                <div>{emp.name}</div>
+                                {emp.phone && <div className="text-[10px] text-slate-400 font-mono">{emp.phone}</div>}
+                              </td>
+                              <td className="p-3 text-slate-600">{emp.jobTitle}</td>
+                              <td className="p-3 font-mono font-bold text-emerald-800">
+                                {formatSYP(emp.baseSalary)}
+                              </td>
+                              <td className="p-3 text-slate-700">
+                                <div className="font-semibold">{emp.dailyWorkHours || 8} ساعات / يوم</div>
+                                <div className="text-[10px] text-slate-400">{emp.monthlyWorkDays || 26} يوم عمل شهري</div>
+                              </td>
+                              <td className="p-3 text-slate-700">
+                                {shift ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 font-medium text-[11px]">
+                                    <Clock className="w-3 h-3 text-slate-500" />
+                                    {shift.name}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 text-[11px]">تلقائي حسب الوقت</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-center">
                                 <button
-                                  onClick={() => handleStartEditEmployee(emp)}
-                                  className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg"
-                                  title="تعديل الموظف"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
+                                  type="button"
                                   onClick={() => {
-                                    setConfirmModalConfig({
-                                      isOpen: true,
-                                      title: `تأكيد حذف الموظف "${emp.name}"`,
-                                      message: `هل أنت متأكد من رغبتك في حذف سجل الموظف "${emp.name}"؟`,
-                                      confirmText: 'نعم، حذف الموظف',
-                                      variant: 'danger',
-                                      onConfirm: async () => {
-                                        setIsActionLoading(true);
-                                        try {
-                                          await onDeleteEmployee(emp.id);
-                                          triggerToast(`تم حذف الموظف "${emp.name}" بنجاح`);
-                                        } finally {
-                                          setIsActionLoading(false);
-                                          setConfirmModalConfig(null);
-                                        }
-                                      },
-                                    });
+                                    setViewingCredentialsEmp(emp);
+                                    setShowCredPassword(false);
                                   }}
-                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg"
-                                  title="حذف الموظف"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-bold transition-colors"
+                                  title="كشف اسم المستخدم وكلمة المرور"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Key className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>كشف كلمة المرور</span>
                                 </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              </td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  {/* Edit Button */}
+                                  <button
+                                    onClick={() => handleStartEditEmployee(emp)}
+                                    className="p-1.5 text-slate-700 hover:text-slate-950 hover:bg-slate-200/80 bg-slate-100 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-bold px-2.5 py-1"
+                                    title="تعديل الراتب والدوام والبيانات"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5 text-slate-700" />
+                                    <span>تعديل</span>
+                                  </button>
+
+                                  {/* Delete Button */}
+                                  <button
+                                    onClick={() => {
+                                      setConfirmModalConfig({
+                                        isOpen: true,
+                                        title: `تأكيد حذف الموظف "${emp.name}"`,
+                                        message: `هل أنت متأكد من رغبتك في حذف سجل الموظف "${emp.name}"؟ سيتم حذف بيانات راتبه وشفتاته.`,
+                                        confirmText: 'نعم، حذف الموظف',
+                                        variant: 'danger',
+                                        onConfirm: async () => {
+                                          setIsActionLoading(true);
+                                          try {
+                                            await onDeleteEmployee(emp.id);
+                                            triggerToast(`تم حذف الموظف "${emp.name}" بنجاح`);
+                                          } finally {
+                                            setIsActionLoading(false);
+                                            setConfirmModalConfig(null);
+                                          }
+                                        },
+                                      });
+                                    }}
+                                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+                                    title="حذف الموظف"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
 
