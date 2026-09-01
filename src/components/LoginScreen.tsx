@@ -455,13 +455,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       <User className="w-3.5 h-3.5 text-slate-700" />
                       <span>اسم مستخدم المدير العام</span>
                     </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      (admin أو {settings.directorName || 'اسمك'})
+                    </span>
                   </label>
                   <input
                     id="username-admin"
                     name="username"
                     type="text"
                     autoComplete="username"
-                    placeholder="admin"
+                    placeholder={settings.directorName ? `admin أو ${settings.directorName}` : 'admin'}
                     value={adminUsername}
                     onChange={(e) => setAdminUsername(e.target.value)}
                     required

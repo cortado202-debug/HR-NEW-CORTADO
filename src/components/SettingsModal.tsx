@@ -87,6 +87,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [usersList, setUsersList] = useState<UserAccount[]>(
     settings.users && settings.users.length > 0 ? settings.users : DEFAULT_ACCOUNTS
   );
+  const initialAdmin = (settings.users && settings.users.find(u => u.role === 'admin')) || DEFAULT_ACCOUNTS[0];
+  const [adminUsername, setAdminUsername] = useState<string>(initialAdmin?.username || 'admin');
+  const [adminPassword, setAdminPassword] = useState<string>(initialAdmin?.password || '123');
+  const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [showUserForm, setShowUserForm] = useState<boolean>(false);
   const [uUsername, setUUsername] = useState<string>('');
@@ -188,6 +192,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (e) e.preventDefault();
     setIsSavingSettings(true);
     try {
+      // Synchronize admin account details in usersList
+      let currentUsers = customUsers || [...usersList];
+      const adminIndex = currentUsers.findIndex((u) => u.role === 'admin');
+      const cleanAdminUser = adminUsername.trim() || 'admin';
+      const cleanAdminPass = adminPassword.trim() || '123';
+
+      if (adminIndex >= 0) {
+        currentUsers[adminIndex] = {
+          ...currentUsers[adminIndex],
+          username: cleanAdminUser,
+          password: cleanAdminPass,
+          displayName: directorName.trim() || 'المدير العام',
+          active: true,
+        };
+      } else {
+        currentUsers.unshift({
+          id: 'admin-primary',
+          username: cleanAdminUser,
+          password: cleanAdminPass,
+          displayName: directorName.trim() || 'المدير العام',
+          role: 'admin',
+          pin: '1234',
+          active: true,
+          createdAt: Date.now(),
+        });
+      }
+      setUsersList(currentUsers);
+
       await onUpdateSettings({
         companyName,
         directorName,
@@ -201,10 +233,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         departureDeductionAmount: departureDeductionAmountRaw ? Number(departureDeductionAmountRaw) : undefined,
         maxAdvancePerMonth: parseSYPInput(maxAdvancePerMonthRaw) || 2000000,
         shifts,
-        users: customUsers || usersList,
+        users: currentUsers,
       });
       setSettingsSavedSuccess(true);
-      triggerToast('✅ تم حفظ كافة الإعدادات وسقف السلف بنجاح ومزامنتها مباشرة!');
+      triggerToast('✅ تم حفظ كافة إعدادات الشركة وبيانات دخول المدير بنجاح ومزامنتها مباشرة!');
       setTimeout(() => setSettingsSavedSuccess(false), 3000);
     } catch (err) {
       console.error(err);
@@ -1550,6 +1582,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     required
+                    placeholder="مثال: مؤسسة كورتادو للتجارة"
                     className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
                   />
                 </div>
@@ -1561,8 +1594,54 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     value={directorName}
                     onChange={(e) => setDirectorName(e.target.value)}
                     required
+                    placeholder="مثال: زياد المحمود"
                     className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-semibold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
                   />
+                </div>
+              </div>
+
+              {/* Admin Login Credentials Box */}
+              <div className="p-4 bg-emerald-50/50 border border-emerald-200/70 rounded-xl flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                  <h4 className="text-xs sm:text-sm font-bold text-emerald-950">بيانات تسجيل الدخول لحساب المدير العام</h4>
+                </div>
+                <p className="text-[11px] text-emerald-800">
+                  يمكنك تحديد اسم المستخدم وكلمة المرور الخاصة بك لتسجيل الدخول كمدير عام.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-slate-700">اسم مستخدم المدير (Username)</label>
+                    <input
+                      type="text"
+                      value={adminUsername}
+                      onChange={(e) => setAdminUsername(e.target.value)}
+                      placeholder="admin أو اسمك"
+                      className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:ring-1 focus:ring-slate-900"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-bold text-slate-700">كلمة مرور المدير (Password)</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showAdminPassword ? 'text' : 'password'}
+                        value={adminPassword}
+                        onChange={(e) => setAdminPassword(e.target.value)}
+                        placeholder="123"
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 pl-9 text-xs font-medium outline-none focus:ring-1 focus:ring-slate-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminPassword(!showAdminPassword)}
+                        className="absolute left-2.5 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                        title={showAdminPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                      >
+                        {showAdminPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
