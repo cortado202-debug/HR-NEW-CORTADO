@@ -1,0 +1,16 @@
+{
+  "entities": {
+    "company_app_data": {
+      "title": "Company App Data",
+      "description": "Centralized company state including employees, advances, attendance records, and settings",
+      "type": "object",
+      "properties": {
+        "employees": { "type": "array" },
+        "advances": { "type": "array" },
+        "attendance": { "type": "object" },
+        "settings": { "type": "object" },
+        "lastUpdated": { "type": "number" }
+      }
+    }
+  }
+}
