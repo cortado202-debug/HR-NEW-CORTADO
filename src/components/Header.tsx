@@ -222,11 +222,11 @@ export const Header: React.FC<HeaderProps> = ({
             )}
 
             {/* User Role Switcher / Logout */}
-            <div className="flex items-center gap-1 pr-1 border-r border-slate-200 mr-1">
+            <div className="flex items-center gap-1.5 pr-1.5 border-r border-slate-200 mr-1">
               {onSwitchRole && (
                 <button
                   onClick={onSwitchRole}
-                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                   title="تبديل الدور / الحساب"
                 >
                   تبديل
@@ -236,10 +236,11 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={onLogout}
                   id="btn-header-logout"
-                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                  title="تسجيل الخروج"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-200/80 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                  title="تسجيل الخروج من الحساب"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">تسجيل خروج</span>
                 </button>
               )}
             </div>

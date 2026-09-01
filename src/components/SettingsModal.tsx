@@ -26,7 +26,9 @@ import {
   ShieldCheck,
   KeyRound,
   Lock,
-  UserCheck
+  UserCheck,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -86,6 +88,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [showUserForm, setShowUserForm] = useState<boolean>(false);
   const [uUsername, setUUsername] = useState<string>('');
   const [uPassword, setUPassword] = useState<string>('');
+  const [showUPassword, setShowUPassword] = useState<boolean>(false);
   const [uPin, setUPin] = useState<string>('');
   const [uDisplayName, setUDisplayName] = useState<string>('');
   const [uRole, setURole] = useState<UserRole>('supervisor');
@@ -990,13 +993,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {/* Password */}
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-bold text-slate-700">كلمة المرور</label>
-                      <input
-                        type="password"
-                        placeholder="••••••••"
-                        value={uPassword}
-                        onChange={(e) => setUPassword(e.target.value)}
-                        className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:ring-1 focus:ring-slate-900"
-                      />
+                      <div className="relative flex items-center">
+                        <input
+                          type={showUPassword ? 'text' : 'password'}
+                          placeholder="••••••••"
+                          value={uPassword}
+                          onChange={(e) => setUPassword(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 pl-9 text-xs font-medium outline-none focus:ring-1 focus:ring-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowUPassword(!showUPassword)}
+                          className="absolute left-2.5 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                          title={showUPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                        >
+                          {showUPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
 
                     {/* 4-Digit Quick PIN */}

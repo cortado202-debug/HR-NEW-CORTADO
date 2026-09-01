@@ -25,8 +25,8 @@ class AuthService {
     } catch {
       // ignore
     }
-    // Default to admin for seamless first load
-    return DEFAULT_ACCOUNTS[0];
+    // Return null so the 3-role login screen is shown upon opening if not logged in
+    return null;
   }
 
   private saveSession(user: UserAccount | null) {
@@ -69,36 +69,70 @@ class AuthService {
     return accounts;
   }
 
-  public loginWithCredentials(username: string, password?: string): { success: boolean; message?: string; user?: UserAccount } {
+  public loginWithCredentials(
+    username: string, 
+    password?: string, 
+    expectedRole?: UserRole
+  ): { success: boolean; message?: string; user?: UserAccount } {
+    if (!username.trim()) {
+      return { success: false, message: 'يرجى إدخال اسم المستخدم' };
+    }
+    if (!password || !password.trim()) {
+      return { success: false, message: 'يرجى إدخال كلمة المرور' };
+    }
+
     const accounts = this.getAllAccounts();
     const cleanUser = username.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    // 1. Search in defined UserAccounts
     const found = accounts.find((u) => u.username.toLowerCase() === cleanUser && u.active);
 
-    if (!found) {
-      // Check if username matches an employee name
-      const data = syncService.getData();
-      const matchedEmp = data.employees.find((e) => e.name.toLowerCase() === cleanUser || (e.phone && e.phone === cleanUser));
-      if (matchedEmp) {
-        const empUser: UserAccount = {
-          id: `emp-usr-${matchedEmp.id}`,
-          username: matchedEmp.phone || matchedEmp.name,
-          displayName: matchedEmp.name,
-          role: 'employee',
-          employeeId: matchedEmp.id,
-          active: matchedEmp.active,
-        };
-        this.saveSession(empUser);
-        return { success: true, user: empUser };
+    if (found) {
+      if (expectedRole && found.role !== expectedRole) {
+        const roleLabel = expectedRole === 'employee' ? 'الموظفين' : expectedRole === 'supervisor' ? 'المشرفين' : 'الإدارة العامة';
+        return { success: false, message: `هذا الحساب ليس مسجلاً في بوابة ${roleLabel}` };
       }
-      return { success: false, message: 'اسم المستخدم غير موجود' };
+
+      const validPassword = found.password || '123';
+      if (cleanPass !== validPassword && cleanPass !== found.pin) {
+        return { success: false, message: 'كلمة المرور غير صحيحة' };
+      }
+
+      this.saveSession(found);
+      return { success: true, user: found };
     }
 
-    if (found.password && password && found.password !== password) {
-      return { success: false, message: 'كلمة المرور غير صحيحة' };
+    // 2. Search in Employees collection for Employee Portal
+    const data = syncService.getData();
+    const matchedEmp = data.employees.find(
+      (e) => (e.name.toLowerCase() === cleanUser || (e.phone && e.phone.trim() === cleanUser)) && e.active
+    );
+
+    if (matchedEmp) {
+      if (expectedRole && expectedRole !== 'employee') {
+        return { success: false, message: 'هذا الحساب خاص بموظف، يرجى تسجيل الدخول من بوابة الموظفين' };
+      }
+
+      // Check default employee password '123' or PIN or last 4 digits of phone
+      const allowedPasswords = ['123', matchedEmp.pin, matchedEmp.phone?.slice(-4)].filter(Boolean);
+      if (!allowedPasswords.includes(cleanPass)) {
+        return { success: false, message: 'كلمة المرور غير صحيحة' };
+      }
+
+      const empUser: UserAccount = {
+        id: `emp-usr-${matchedEmp.id}`,
+        username: matchedEmp.phone || matchedEmp.name,
+        displayName: matchedEmp.name,
+        role: 'employee',
+        employeeId: matchedEmp.id,
+        active: matchedEmp.active,
+      };
+      this.saveSession(empUser);
+      return { success: true, user: empUser };
     }
 
-    this.saveSession(found);
-    return { success: true, user: found };
+    return { success: false, message: 'اسم المستخدم غير موجود أو غير مفعل' };
   }
 
   public loginWithPin(pin: string): { success: boolean; message?: string; user?: UserAccount } {
