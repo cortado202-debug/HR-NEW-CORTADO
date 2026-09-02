@@ -97,7 +97,6 @@ export type OvertimeCalculationMode = 'hourly_multiplier' | 'fixed_hour' | 'prop
 export interface CompanySettings {
   companyName: string;
   logoUrl: string;
-  loginLogoUrl?: string; // Dedicated Logo specifically for Login Screen
   currencySymbol: string; // 'ل.س'
   defaultWorkDays: number; // 26
   defaultWorkHours: number; // 8

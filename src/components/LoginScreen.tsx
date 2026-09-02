@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, CompanySettings, UserRole } from '../types';
 import { authService } from '../services/authService';
-import { syncService } from '../services/syncService';
 import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 import { 
   Building2, 
@@ -19,9 +18,7 @@ import {
   QrCode, 
   ChevronDown,
   Sparkles,
-  KeyRound,
-  Camera,
-  Upload
+  KeyRound
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -58,67 +55,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-
-  // Dynamic Login Logo state with multi-level resilient fallback
-  const [currentLoginLogo, setCurrentLoginLogo] = useState<string>(() => {
-    return settings.loginLogoUrl || settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('cortado_login_logo') || localStorage.getItem('cortado_company_logo') || '' : '') || DEFAULT_CORTADO_LOGO;
-  });
-
-  useEffect(() => {
-    const candidate = settings.loginLogoUrl || settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('cortado_login_logo') || localStorage.getItem('cortado_company_logo') || '' : '') || DEFAULT_CORTADO_LOGO;
-    setCurrentLoginLogo(candidate);
-  }, [settings.loginLogoUrl, settings.logoUrl]);
-
-  // Quick logo upload directly from login screen
-  const handleQuickLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 15 * 1024 * 1024) {
-      alert('حجم الصورة كبير جداً');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const rawResult = event.target?.result as string;
-      if (!rawResult) return;
-      const img = new Image();
-      img.onload = () => {
-        const maxDim = 320;
-        let w = img.width;
-        let h = img.height;
-        if (w > h) {
-          if (w > maxDim) {
-            h = Math.round((h * maxDim) / w);
-            w = maxDim;
-          }
-        } else {
-          if (h > maxDim) {
-            w = Math.round((w * maxDim) / h);
-            h = maxDim;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.clearRect(0, 0, w, h);
-          ctx.drawImage(img, 0, 0, w, h);
-          const opt = canvas.toDataURL('image/png', 0.9);
-          setCurrentLoginLogo(opt);
-          try {
-            localStorage.setItem('cortado_login_logo', opt);
-            localStorage.setItem('cortado_company_logo', opt);
-          } catch (err) {
-            console.warn(err);
-          }
-          syncService.updateSettings({ loginLogoUrl: opt, logoUrl: opt }).catch(console.warn);
-        }
-      };
-      img.src = rawResult;
-    };
-    reader.readAsDataURL(file);
-  };
 
   const handleToggleSection = (role: UserRole) => {
     setActiveRoleSection(role);
@@ -170,6 +106,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
   };
 
+  const activeLogo = settings.logoUrl || DEFAULT_CORTADO_LOGO;
+
   return (
     <div className="min-h-screen bg-[#F1F5F9] flex flex-col justify-center items-center p-3 sm:p-6 font-sans antialiased text-slate-900 selection:bg-slate-900 selection:text-white" dir="rtl">
       
@@ -183,28 +121,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         
         {/* Header with Logo and Brand */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="relative group">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl mb-3 shadow-md border-2 border-emerald-500/40 bg-white p-2 flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:scale-105 group-hover:shadow-lg">
-              <img 
-                src={currentLoginLogo} 
-                alt={settings.companyName || 'شعار الشركة'} 
-                className="w-full h-full object-contain rounded-2xl drop-shadow-xs"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            {/* Quick Change Logo Button Badge */}
-            <label 
-              title="تغيير أو رفع لوغو واجهة تسجيل الدخول مباشرة"
-              className="absolute -bottom-1 -left-1 sm:bottom-1 sm:left-1 cursor-pointer bg-slate-900 hover:bg-emerald-600 text-white p-1.5 rounded-full shadow-md border-2 border-white transition-all transform hover:scale-110 flex items-center justify-center"
-            >
-              <Camera className="w-3.5 h-3.5" />
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handleQuickLogoChange} 
-                className="hidden" 
-              />
-            </label>
+          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl mb-3 shadow-md border-2 border-emerald-500/40 bg-white p-2 flex items-center justify-center overflow-hidden transition-all duration-300 hover:scale-105">
+            <img 
+              src={activeLogo} 
+              alt={settings.companyName || 'شعار الشركة'} 
+              className="w-full h-full object-contain rounded-2xl drop-shadow-xs"
+              referrerPolicy="no-referrer"
+            />
           </div>
           
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">

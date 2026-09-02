@@ -67,7 +67,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [companyName, setCompanyName] = useState<string>(settings.companyName);
   const [directorName, setDirectorName] = useState<string>(settings.directorName);
   const [logoUrl, setLogoUrl] = useState<string>(settings.logoUrl || '');
-  const [loginLogoUrl, setLoginLogoUrl] = useState<string>(settings.loginLogoUrl || '');
   const [defaultWorkDays, setDefaultWorkDays] = useState<number>(settings.defaultWorkDays || 26);
   const [defaultWorkHours, setDefaultWorkHours] = useState<number>(settings.defaultWorkHours || 8);
   const [absentMultiplier, setAbsentMultiplier] = useState<number>(settings.defaultAbsentDeductionMultiplier || 1.0);
@@ -190,7 +189,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setCompanyName(settings.companyName || 'شركة كورتادو كافيه');
       setDirectorName(settings.directorName || 'زياد');
       setLogoUrl(settings.logoUrl || null);
-      setLoginLogoUrl(settings.loginLogoUrl || null);
       setDefaultWorkDays(settings.defaultWorkDays || 26);
       setDefaultWorkHours(settings.defaultWorkHours || 8);
       setAbsentMultiplier(settings.defaultAbsentDeductionMultiplier || 1.0);
@@ -269,23 +267,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Handle General Company Logo Upload
+  // Handle Unified Company Logo Upload with Instant Auto-Sync
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      processImageUpload(file, (optimized) => {
+      processImageUpload(file, async (optimized) => {
         setLogoUrl(optimized);
+        try {
+          await onUpdateSettings({ logoUrl: optimized });
+          triggerToast('✅ تم رفع وتحديث شعار المنشأة مباشرة في شاشة تسجيل الدخول وكافة التقارير!');
+        } catch (err) {
+          console.error(err);
+        }
       });
     }
   };
 
-  // Handle Dedicated Login Screen Logo Upload
-  const handleLoginLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processImageUpload(file, (optimized) => {
-        setLoginLogoUrl(optimized);
-      });
+  const handleRemoveLogo = async () => {
+    setLogoUrl('');
+    try {
+      await onUpdateSettings({ logoUrl: '' });
+      triggerToast('تمت إزالة الشعار واستعادة الشعار الافتراضي');
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -335,7 +339,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         companyName,
         directorName,
         logoUrl,
-        loginLogoUrl,
         defaultWorkDays: Number(defaultWorkDays),
         defaultWorkHours: Number(defaultWorkHours),
         defaultAbsentDeductionMultiplier: Number(absentMultiplier),
@@ -1719,86 +1722,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               )}
 
-              {/* Section 1: General System Logo */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200/80">
-                <div className="h-16 w-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs p-1">
+              {/* Unified Company & Login System Logo */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-5 p-5 bg-emerald-50/50 rounded-2xl border-2 border-emerald-500/30 shadow-xs">
+                <div className="h-24 w-24 rounded-2xl bg-white border-2 border-emerald-500/40 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-md p-2">
                   {(() => {
                     const preview = logoUrl || DEFAULT_CORTADO_LOGO;
                     return (
-                      <img src={preview} alt="Logo" className="h-full w-full object-contain rounded-lg" />
+                      <img src={preview} alt="Logo" className="h-full w-full object-contain rounded-xl drop-shadow-xs" />
                     );
                   })()}
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Building2 className="w-4 h-4 text-slate-700" />
-                    <h4 className="text-xs font-bold text-slate-900">شعار المنظومة العام (للترويسة والتقارير وكشوف الرواتب)</h4>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Building2 className="w-5 h-5 text-emerald-700" />
+                    <h4 className="text-sm font-black text-slate-900">شعار المنشأة واللوغو الرسمي (المعتمد في شاشة الدخول وكافة التقارير)</h4>
                   </div>
-                  <p className="text-[11px] text-slate-500 mb-2">
-                    يظهر هذا الشعار أعلى شاشة لوحة التحكم وفي ترويسة إيصالات السلف وكشوفات الرواتب المطبوعة
+                  <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                    يظهر هذا اللوغو في واجهة تسجيل الدخول الرئيسية أمام جميع الموظفين والمشرفين، وفي ترويسة النظام وإيصالات السلف وكشوفات الرواتب المطبوعة.
                   </p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <label className="cursor-pointer px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs">
-                      <Upload className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>رفع صورة الشعار العام</span>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label className="cursor-pointer px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm active:scale-95">
+                      <Upload className="w-4 h-4" />
+                      <span>رفع أو تغيير صورة اللوغو</span>
                       <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
                     </label>
-                    {logoUrl && (
+                    {logoUrl && logoUrl !== DEFAULT_CORTADO_LOGO && (
                       <button
                         type="button"
-                        onClick={() => setLogoUrl('')}
-                        className="text-rose-600 hover:text-rose-800 text-xs font-semibold px-2 py-1"
+                        onClick={handleRemoveLogo}
+                        className="px-3 py-2 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                       >
-                        إزالة الشعار
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 2: Dedicated Login Screen Logo */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-emerald-50/60 rounded-xl border-2 border-emerald-200">
-                <div className="h-20 w-20 rounded-2xl bg-white border-2 border-emerald-300 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm p-1.5 relative">
-                  {(() => {
-                    const preview = loginLogoUrl || logoUrl || DEFAULT_CORTADO_LOGO;
-                    return (
-                      <img src={preview} alt="Login Screen Logo" className="h-full w-full object-contain rounded-xl" />
-                    );
-                  })()}
-                  <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-xs">
-                    دخول
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                    <h4 className="text-xs sm:text-sm font-black text-emerald-950">شعار واجهة تسجيل الدخول المخصصة (Login Screen Logo)</h4>
-                  </div>
-                  <p className="text-[11px] text-emerald-800 mb-2.5">
-                    هذا الشعار يظهر خصيصاً في أعلى واجهة تسجيل الدخول الرئيسية أمام جميع الموظفين والمشرفين والمدير.
-                  </p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <label className="cursor-pointer px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>رفع لوغو واجهة تسجيل الدخول</span>
-                      <input type="file" accept="image/*" onChange={handleLoginLogoUpload} className="hidden" />
-                    </label>
-                    {logoUrl && logoUrl !== loginLogoUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setLoginLogoUrl(logoUrl)}
-                        className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors"
-                      >
-                        استخدام نفس الشعار العام
-                      </button>
-                    )}
-                    {loginLogoUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setLoginLogoUrl('')}
-                        className="text-rose-600 hover:text-rose-800 text-xs font-semibold px-2 py-1"
-                      >
-                        إلغاء التخصيص
+                        استعادة الشعار الافتراضي
                       </button>
                     )}
                   </div>
