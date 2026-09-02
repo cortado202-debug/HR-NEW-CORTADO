@@ -21,7 +21,7 @@ import {
   AlertCircle, 
   User, 
   TrendingUp, 
-  Sparkles,
+  ClockPlus,
   ShieldCheck,
   Printer,
   Building2
@@ -121,7 +121,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
                 {settings.companyName || 'منظومة سلف وحضور الموظفين'}
               </h1>
               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex-shrink-0">
-                <Sparkles className="w-3 h-3 text-emerald-600" />
+                <User className="w-3 h-3 text-emerald-600" />
                 <span>بوابة الموظف الذاتية</span>
               </span>
             </div>
@@ -242,7 +242,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 shadow-2xs">
           <div className="flex items-center justify-between text-emerald-800 mb-1">
             <span className="text-xs font-semibold">العمل الإضافي</span>
-            <Sparkles className="w-4 h-4 text-emerald-600" />
+            <ClockPlus className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-sm sm:text-base font-bold font-mono text-emerald-700 truncate">
             {summary.totalOvertimeHours > 0 ? (

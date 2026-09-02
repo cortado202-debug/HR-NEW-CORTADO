@@ -27,7 +27,7 @@ import {
   ChevronDown, 
   User, 
   Briefcase, 
-  Sparkles,
+  ClockPlus,
   Zap,
   RotateCcw,
   MessageSquare,
@@ -694,7 +694,7 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
                 title="تسجيل وتعديل ساعات العمل الإضافي المضافة للراتب"
                 className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
               >
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <ClockPlus className="w-3.5 h-3.5 text-emerald-600" />
                 <span>+إضافي</span>
               </button>
 
@@ -776,7 +776,7 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
             <div className="bg-emerald-950 text-white rounded-xl p-3 flex flex-col justify-between shadow-2xs border border-emerald-800">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                  <ClockPlus className="w-3 h-3 text-emerald-400" />
                   إضافي اليوم
                 </span>
                 <span className="text-[10px] font-mono font-bold text-emerald-200 bg-emerald-900/80 px-1.5 py-0.5 rounded">

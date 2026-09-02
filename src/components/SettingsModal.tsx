@@ -21,7 +21,7 @@ import {
   Clock,
   DoorOpen,
   ShieldAlert,
-  Sparkles,
+  ClockPlus,
   CalendarCheck2,
   ShieldCheck,
   KeyRound,
@@ -1870,7 +1870,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl flex flex-col gap-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-700" />
+                    <ClockPlus className="w-4 h-4 text-emerald-700" />
                     <h4 className="text-xs sm:text-sm font-bold text-emerald-950">قواعد احتساب العمل الإضافي (ساعات العمل الإضافية)</h4>
                   </div>
                   <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-200/60 text-emerald-900 rounded-md border border-emerald-300">

@@ -14,7 +14,6 @@ import {
   LogIn, 
   CheckCircle2, 
   QrCode, 
-  Sparkles,
   Phone
 } from 'lucide-react';
 

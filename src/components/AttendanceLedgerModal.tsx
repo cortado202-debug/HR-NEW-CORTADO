@@ -24,7 +24,7 @@ import {
   ChevronLeft,
   Users,
   Download,
-  Sparkles
+  ClockPlus
 } from 'lucide-react';
 
 interface AttendanceLedgerModalProps {

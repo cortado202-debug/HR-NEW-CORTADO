@@ -12,7 +12,6 @@ import {
   Building2, 
   CheckCircle2, 
   X,
-  Sparkles,
   ShieldCheck
 } from 'lucide-react';
 

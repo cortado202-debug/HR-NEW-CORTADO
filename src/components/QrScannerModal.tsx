@@ -10,7 +10,6 @@ import {
   AlertCircle, 
   Flashlight, 
   Upload, 
-  Sparkles,
   QrCode,
   ShieldCheck
 } from 'lucide-react';

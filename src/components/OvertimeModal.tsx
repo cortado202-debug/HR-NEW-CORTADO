@@ -9,7 +9,7 @@ import {
 } from '../utils/payrollMath';
 import { 
   Clock, 
-  Sparkles, 
+  ClockPlus, 
   Save, 
   X, 
   DollarSign, 
@@ -166,7 +166,7 @@ export const OvertimeModal: React.FC<OvertimeModalProps> = ({
         <div className="p-4 bg-emerald-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-emerald-500/20 text-emerald-300 rounded-xl border border-emerald-400/30">
-              <Sparkles className="w-5 h-5 text-emerald-300" />
+              <ClockPlus className="w-5 h-5 text-emerald-300" />
             </div>
             <div>
               <h3 className="text-base font-bold flex items-center gap-2">

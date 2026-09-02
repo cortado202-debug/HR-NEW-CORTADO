@@ -21,7 +21,7 @@ import {
   AlertCircle, 
   FileText,
   Receipt,
-  Sparkles
+  ClockPlus
 } from 'lucide-react';
 import { downloadPdfFromElement, triggerPrint } from '../utils/printPdfUtils';
 
@@ -341,7 +341,7 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
               <div className="p-2 rounded-lg border border-emerald-200 bg-emerald-50/70 shadow-2xs">
                 <div className="text-[9px] font-bold text-emerald-800 flex items-center justify-between">
                   <span>إضافي الدوام</span>
-                  <Sparkles className="w-3 h-3 text-emerald-600" />
+                  <ClockPlus className="w-3 h-3 text-emerald-600" />
                 </div>
                 <div className="text-xs font-bold font-mono text-emerald-700 mt-0.5">
                   +{formatSYP(currentSummary.totalOvertimePay || 0)}

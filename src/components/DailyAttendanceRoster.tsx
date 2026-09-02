@@ -30,7 +30,7 @@ import {
   ChevronLeft, 
   ChevronRight, 
   RotateCcw,
-  Sparkles,
+  ClockPlus,
   Zap,
   Edit2,
   LogOut
@@ -318,7 +318,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
           </div>
           <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-200 flex items-center justify-between">
             <span className="text-emerald-800 font-semibold flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-emerald-600" />
+              <ClockPlus className="w-3 h-3 text-emerald-600" />
               إضافي:
             </span>
             <span className="font-bold font-mono text-emerald-700 text-sm">
@@ -475,7 +475,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
                         )}
                         {rec.overtimeHours && rec.overtimeHours > 0 && (
                           <span className="inline-flex items-center gap-1 font-bold text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                            <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                            <ClockPlus className="w-2.5 h-2.5 text-emerald-600" />
                             <span>+{formatSYP(otPay)} ({rec.overtimeHours}س)</span>
                           </span>
                         )}
@@ -588,7 +588,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
                             : 'bg-white hover:bg-emerald-50 text-emerald-800 border-slate-200'
                         }`}
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <ClockPlus className="w-3.5 h-3.5" />
                       </button>
 
                       {/* Custom Late Modal */}

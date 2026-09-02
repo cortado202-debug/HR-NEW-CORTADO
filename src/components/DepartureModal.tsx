@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Employee, AttendanceRecord, CompanySettings } from '../types';
 import { formatSYP, formatArabicDate, getCurrentTimeString } from '../utils/formatters';
 import { calculateDailyRate, calculateHourlyRate } from '../utils/payrollMath';
-import { X, DoorOpen, Clock, AlertCircle, Check, Sparkles } from 'lucide-react';
+import { X, DoorOpen, Clock, AlertCircle, Check } from 'lucide-react';
 
 interface DepartureModalProps {
   isOpen: boolean;

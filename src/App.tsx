@@ -18,7 +18,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { EmployeeDashboard } from './components/EmployeeDashboard';
 import { SupervisorQrDisplay } from './components/SupervisorQrDisplay';
 import { getTodayDateString } from './utils/formatters';
-import { ShieldCheck, Sparkles, Smartphone, Laptop, X, QrCode } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, Smartphone, Laptop, X, QrCode } from 'lucide-react';
 
 export default function App() {
   const [data, setData] = useState<AppData>(syncService.getData());
@@ -251,7 +251,7 @@ export default function App() {
           <div className="mb-4 sm:mb-5 p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-xl shadow-xs border border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-200">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30 flex-shrink-0">
-                <Sparkles className="w-5 h-5" />
+                <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
