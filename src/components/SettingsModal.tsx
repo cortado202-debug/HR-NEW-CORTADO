@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Employee, CompanySettings, AppData, WorkShift, LateDeductionMode, OvertimeCalculationMode, UserAccount, UserRole } from '../types';
 import { formatSYP, parseSYPInput, getTodayDateString } from '../utils/formatters';
 import { DEFAULT_ACCOUNTS } from '../utils/initialData';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 import { 
   X, 
   Building2, 
@@ -1701,12 +1702,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               {/* Logo Upload */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200/80">
-                <div className="h-16 w-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs">
-                  {logoUrl ? (
-                    <img src={logoUrl} alt="Logo" className="h-full w-full object-contain p-1" />
-                  ) : (
-                    <Building2 className="w-8 h-8 text-slate-400" />
-                  )}
+                <div className="h-16 w-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-xs p-1">
+                  {(() => {
+                    const preview = logoUrl || DEFAULT_CORTADO_LOGO;
+                    return (
+                      <img src={preview} alt="Logo" className="h-full w-full object-contain rounded-lg" />
+                    );
+                  })()}
                 </div>
                 <div className="flex-1">
                   <h4 className="text-xs font-bold text-slate-800 mb-1">شعار الشركة (Company Logo)</h4>

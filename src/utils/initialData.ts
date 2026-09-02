@@ -1,4 +1,5 @@
 import { AppData, UserAccount } from '../types';
+import { DEFAULT_CORTADO_LOGO } from './brandLogo';
 
 export const DEFAULT_ACCOUNTS: UserAccount[] = [
   {
@@ -26,7 +27,7 @@ export const DEFAULT_ACCOUNTS: UserAccount[] = [
 export const INITIAL_APP_DATA: AppData = {
   settings: {
     companyName: 'شركة كورتادو كافيه',
-    logoUrl: '',
+    logoUrl: DEFAULT_CORTADO_LOGO,
     currencySymbol: 'ل.س',
     defaultWorkDays: 26,
     defaultWorkHours: 8,

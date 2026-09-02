@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, CompanySettings, UserRole } from '../types';
 import { authService } from '../services/authService';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 import { 
   Building2, 
   ShieldCheck, 
@@ -118,23 +119,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         
         {/* Header with Logo and Brand */}
         <div className="flex flex-col items-center text-center mb-6">
-          {settings.logoUrl ? (
-            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl mb-3 shadow-xs flex items-center justify-center max-h-24 max-w-[240px] overflow-hidden">
-              <img 
-                src={settings.logoUrl} 
-                alt="شعار الشركة" 
-                className="max-h-20 max-w-full object-contain rounded-lg"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          ) : (
-            <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center mb-3 shadow-md border border-slate-800">
-              <Building2 className="w-8 h-8 text-emerald-400" />
-            </div>
-          )}
+          {(() => {
+            const activeLogo = settings.logoUrl || DEFAULT_CORTADO_LOGO;
+            return (
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl mb-3 shadow-md border-2 border-emerald-500/30 bg-emerald-50/40 p-2 flex items-center justify-center overflow-hidden transition-transform hover:scale-105">
+                <img 
+                  src={activeLogo} 
+                  alt={settings.companyName || 'شعار الشركة'} 
+                  className="w-full h-full object-contain rounded-2xl drop-shadow-xs"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            );
+          })()}
           
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            {settings.companyName || 'منظومة سلف وحضور الموظفين'}
+            {settings.companyName || 'شركة كورتادو كافيه'}
           </h1>
           <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 font-medium">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

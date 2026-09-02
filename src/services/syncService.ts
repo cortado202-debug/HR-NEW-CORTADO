@@ -96,6 +96,7 @@ class SyncService {
   private loadLocal(): AppData {
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const backupLogo = localStorage.getItem('cortado_company_logo');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object') {
@@ -103,6 +104,9 @@ class SyncService {
             ...INITIAL_APP_DATA.settings,
             ...(parsed.settings || {}),
           };
+          if (!settings.logoUrl && backupLogo) {
+            settings.logoUrl = backupLogo;
+          }
           if (!settings.shifts || settings.shifts.length === 0) {
             settings.shifts = INITIAL_APP_DATA.settings.shifts;
           }
@@ -180,6 +184,10 @@ class SyncService {
                 ...INITIAL_APP_DATA.settings,
                 ...(remoteData.settings || {}),
               };
+              // If remote logo is empty, preserve local custom logo if exists
+              if (!settings.logoUrl && this.data.settings.logoUrl) {
+                settings.logoUrl = this.data.settings.logoUrl;
+              }
               if (!settings.shifts || settings.shifts.length === 0) {
                 settings.shifts = INITIAL_APP_DATA.settings.shifts;
               }
@@ -390,6 +398,13 @@ class SyncService {
   public async updateSettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
     this.data.settings = { ...this.data.settings, ...settings };
     this.data.lastUpdated = Date.now();
+    if (this.data.settings.logoUrl) {
+      try {
+        localStorage.setItem('cortado_company_logo', this.data.settings.logoUrl);
+      } catch (e) {
+        console.warn('Could not cache logo in localStorage:', e);
+      }
+    }
     this.saveLocal();
     this.notify();
     this.broadcastLocal('SETTINGS_UPDATED', this.data.settings);

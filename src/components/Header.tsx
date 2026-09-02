@@ -1,6 +1,7 @@
 import React from 'react';
 import { CompanySettings, UserAccount } from '../types';
 import { formatArabicDate, getTodayDateString } from '../utils/formatters';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 import { 
   Building2, 
   Settings, 
@@ -60,17 +61,16 @@ export const Header: React.FC<HeaderProps> = ({
           
           {/* Right: Company Logo & Info */}
           <div className="flex items-center gap-2.5 min-w-0">
-            {settings.logoUrl ? (
-              <img
-                src={settings.logoUrl}
-                alt={settings.companyName}
-                className="h-9 w-9 md:h-10 md:w-10 rounded-lg object-contain border border-slate-200 bg-slate-50 p-1 flex-shrink-0"
-              />
-            ) : (
-              <div className="h-9 w-9 md:h-10 md:w-10 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-base md:text-lg flex-shrink-0 shadow-2xs">
-                {settings.companyName ? settings.companyName.charAt(0) : <Building2 className="w-4 h-4" />}
-              </div>
-            )}
+            {(() => {
+              const activeLogo = settings.logoUrl || DEFAULT_CORTADO_LOGO;
+              return (
+                <img
+                  src={activeLogo}
+                  alt={settings.companyName || 'Cortado'}
+                  className="h-9 w-9 md:h-10 md:w-10 rounded-xl object-contain border border-slate-200 bg-white p-0.5 flex-shrink-0 shadow-2xs"
+                />
+              );
+            })()}
             
             <div className="min-w-0">
               <div className="flex items-center gap-2">
