@@ -25,7 +25,7 @@ export const DEFAULT_ACCOUNTS: UserAccount[] = [
 
 export const INITIAL_APP_DATA: AppData = {
   settings: {
-    companyName: 'مؤسسة كورتادو للتجارة',
+    companyName: 'شركة كورتادو كافيه',
     logoUrl: '',
     currencySymbol: 'ل.س',
     defaultWorkDays: 26,

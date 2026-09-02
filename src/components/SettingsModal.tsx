@@ -215,18 +215,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Handle Logo Upload (file or base64)
+  // Handle Logo Upload (file or base64) with automatic client-side compression
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('حجم الصورة يجب أن لا يتجاوز 2 ميغابايت');
+      if (file.size > 10 * 1024 * 1024) {
+        alert('حجم الصورة كبير جداً، يرجى اختيار صورة أصغر');
         return;
       }
       const reader = new FileReader();
       reader.onload = (event) => {
-        const result = event.target?.result as string;
-        setLogoUrl(result);
+        const rawResult = event.target?.result as string;
+        if (!rawResult) return;
+
+        // Compress image using HTML5 Canvas to keep it ultra lightweight (~20-40KB)
+        const img = new Image();
+        img.onload = () => {
+          const maxDimension = 320;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxDimension) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            }
+          } else {
+            if (height > maxDimension) {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            const optimizedDataUrl = canvas.toDataURL('image/png', 0.88);
+            setLogoUrl(optimizedDataUrl);
+          } else {
+            setLogoUrl(rawResult);
+          }
+        };
+        img.onerror = () => {
+          setLogoUrl(rawResult);
+        };
+        img.src = rawResult;
       };
       reader.readAsDataURL(file);
     }
