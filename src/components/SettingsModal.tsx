@@ -335,27 +335,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
 
     let updatedList: UserAccount[];
+    const cleanPassword = uPassword.trim() || '123';
+    const cleanPin = uPin.trim() || '1234';
+    const cleanUsername = uUsername.trim();
+    const cleanDisplayName = uDisplayName.trim();
+
     if (editingUser) {
       updatedList = usersList.map((u) =>
         u.id === editingUser.id
           ? {
               ...u,
-              username: uUsername.trim(),
-              password: uPassword.trim() || undefined,
-              pin: uPin.trim() || undefined,
-              displayName: uDisplayName.trim(),
+              username: cleanUsername,
+              password: cleanPassword,
+              pin: cleanPin,
+              displayName: cleanDisplayName,
               role: uRole,
               employeeId: uRole === 'employee' ? uEmployeeId : undefined,
+              active: true,
             }
           : u
       );
     } else {
       const newUser: UserAccount = {
         id: `user-${Date.now()}`,
-        username: uUsername.trim(),
-        password: uPassword.trim() || undefined,
-        pin: uPin.trim() || undefined,
-        displayName: uDisplayName.trim(),
+        username: cleanUsername,
+        password: cleanPassword,
+        pin: cleanPin,
+        displayName: cleanDisplayName,
         role: uRole,
         employeeId: uRole === 'employee' ? uEmployeeId : undefined,
         active: true,
@@ -364,9 +370,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       updatedList = [...usersList, newUser];
     }
 
+    // If role is employee and linked to an employee ID, sync credentials to employee record
+    if (uRole === 'employee' && uEmployeeId) {
+      const targetEmp = employees.find((emp) => emp.id === uEmployeeId);
+      if (targetEmp) {
+        await onSaveEmployee({
+          ...targetEmp,
+          username: cleanUsername,
+          password: cleanPassword,
+          pin: cleanPin,
+        });
+      }
+    }
+
     setUsersList(updatedList);
     setShowUserForm(false);
     await handleSaveCompanySettings(undefined, updatedList);
+    triggerToast(`✅ تم حفظ وتحديث بيانات حساب "${cleanDisplayName}" بنجاح!`);
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -470,7 +490,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     setIsSavingEmployee(true);
     try {
-      await onSaveEmployee({
+      const cleanEmpUsername = empUsername.trim() || empName.trim();
+      const cleanEmpPassword = empPassword.trim() || '123';
+      const cleanEmpPin = empPin.trim() || '1234';
+
+      const savedEmpData = {
         id: editingEmployee?.id,
         name: empName.trim(),
         jobTitle: empJobTitle.trim() || 'موظف',
@@ -481,15 +505,54 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         absentDeductionRate: Number(empAbsentMultiplier) || 1.0,
         assignedShiftId: empAssignedShiftId || undefined,
         maxMonthlyAdvance: empMaxAdvanceRaw ? parseSYPInput(empMaxAdvanceRaw) : undefined,
-        username: empUsername.trim() || undefined,
-        password: empPassword.trim() || '123',
-        pin: empPin.trim() || '1234',
+        username: cleanEmpUsername,
+        password: cleanEmpPassword,
+        pin: cleanEmpPin,
         active: editingEmployee ? editingEmployee.active : true,
         joinedDate: editingEmployee?.joinedDate || getTodayDateString(),
         avatarColor: editingEmployee?.avatarColor || 'bg-slate-700',
+      };
+
+      await onSaveEmployee(savedEmpData);
+
+      // Auto update or create user account in usersList
+      let updatedUsers = [...usersList];
+      const targetEmpId = editingEmployee?.id;
+      const existingUserIdx = updatedUsers.findIndex(
+        (u) => (targetEmpId && u.employeeId === targetEmpId) || (u.role === 'employee' && u.username?.toLowerCase() === cleanEmpUsername.toLowerCase())
+      );
+
+      if (existingUserIdx >= 0) {
+        updatedUsers[existingUserIdx] = {
+          ...updatedUsers[existingUserIdx],
+          username: cleanEmpUsername,
+          password: cleanEmpPassword,
+          pin: cleanEmpPin,
+          displayName: empName.trim(),
+          employeeId: targetEmpId || updatedUsers[existingUserIdx].employeeId,
+          active: savedEmpData.active,
+        };
+      } else {
+        updatedUsers.push({
+          id: `user-${Date.now()}`,
+          username: cleanEmpUsername,
+          password: cleanEmpPassword,
+          pin: cleanEmpPin,
+          displayName: empName.trim(),
+          role: 'employee',
+          employeeId: targetEmpId,
+          active: true,
+          createdAt: Date.now(),
+        });
+      }
+
+      setUsersList(updatedUsers);
+      await onUpdateSettings({
+        users: updatedUsers,
       });
+
       setShowEmployeeForm(false);
-      triggerToast(editingEmployee ? `تم تعديل بيانات وراتب الموظف "${empName.trim()}" بنجاح` : `تمت إضافة الموظف "${empName.trim()}" بنجاح`);
+      triggerToast(editingEmployee ? `✅ تم تعديل وحفظ بيانات وراتب وحساب الموظف "${empName.trim()}" بنجاح` : `✅ تمت إضافة الموظف وحسابه بنجاح`);
     } catch (err) {
       alert('حدث خطأ أثناء حفظ بيانات الموظف');
     } finally {

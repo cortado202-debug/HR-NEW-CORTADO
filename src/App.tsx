@@ -171,11 +171,16 @@ export default function App() {
 
   // 2. IF EMPLOYEE: SHOW EMPLOYEE PORTAL ONLY (STRICT ACCESS PRIVACY - ONLY SEES OWN ACCOUNT)
   if (currentUser.role === 'employee') {
+    const cleanCurrentUsername = (currentUser.username || '').trim().toLowerCase();
+    const cleanCurrentDisplayName = (currentUser.displayName || '').trim().toLowerCase();
+
     const matchedEmployee = 
       data.employees.find((e) => e.id === currentUser.employeeId) ||
-      data.employees.find((e) => e.name.toLowerCase() === currentUser.username.toLowerCase() || (e.phone && e.phone === currentUser.username)) ||
+      data.employees.find((e) => (e.username && e.username.trim().toLowerCase() === cleanCurrentUsername)) ||
+      data.employees.find((e) => e.name.trim().toLowerCase() === cleanCurrentUsername || (currentUser.displayName && e.name.trim().toLowerCase() === cleanCurrentDisplayName)) ||
+      data.employees.find((e) => e.phone && (e.phone === currentUser.username || cleanCurrentUsername.includes(e.phone))) ||
       {
-        id: currentUser.employeeId || 'emp-active',
+        id: currentUser.employeeId || `emp-${Date.now()}`,
         name: currentUser.displayName || currentUser.username,
         jobTitle: 'موظف',
         baseSalary: 0,

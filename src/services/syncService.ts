@@ -166,6 +166,16 @@ class SyncService {
             const remoteData = docSnap.data() as any;
             
             if (remoteData) {
+              // Ignore our own updates if we already have this or newer state
+              if (remoteData.updatedByClientId === CLIENT_ID && (remoteData.lastUpdated || 0) <= this.data.lastUpdated) {
+                this.setConnectionStatus('connected');
+                return;
+              }
+              if ((remoteData.lastUpdated || 0) < this.data.lastUpdated) {
+                this.setConnectionStatus('connected');
+                return;
+              }
+
               const settings: CompanySettings = {
                 ...INITIAL_APP_DATA.settings,
                 ...(remoteData.settings || {}),
@@ -175,6 +185,9 @@ class SyncService {
               }
               if (settings.maxAdvancePerMonth === undefined) {
                 settings.maxAdvancePerMonth = 2000000;
+              }
+              if (!settings.users || settings.users.length === 0) {
+                settings.users = this.data.settings.users || INITIAL_APP_DATA.settings.users;
               }
 
               this.data = {
