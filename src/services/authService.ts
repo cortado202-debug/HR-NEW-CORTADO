@@ -14,7 +14,51 @@ function normalizeString(str?: string | null): string {
     .replace(/[أإآ]/g, 'ا')
     .replace(/ة/g, 'ه')
     .replace(/ى/g, 'ي')
-    .replace(/\s+/g, ' ');
+    .replace(/[^\w\s\u0600-\u06FF]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanTextWithoutBrackets(str?: string | null): string {
+  if (!str) return '';
+  return str
+    .replace(/\(.*?\)/g, '')
+    .replace(/\[.*?\]/g, '')
+    .replace(/-.*$/g, '')
+    .trim();
+}
+
+function isMatchingIdentity(candidate?: string | null, input?: string | null): boolean {
+  if (!candidate || !input) return false;
+  const rawCand = candidate.trim().toLowerCase();
+  const rawInp = input.trim().toLowerCase();
+  if (rawCand === rawInp) return true;
+
+  const normCand = normalizeString(candidate);
+  const normInp = normalizeString(input);
+  if (normCand && normInp && normCand === normInp) return true;
+
+  const bracketCleanCand = normalizeString(cleanTextWithoutBrackets(candidate));
+  const bracketCleanInp = normalizeString(cleanTextWithoutBrackets(input));
+  if (bracketCleanCand && normInp && (bracketCleanCand === normInp || bracketCleanCand.includes(normInp) || normInp.includes(bracketCleanCand))) {
+    return true;
+  }
+  if (bracketCleanCand && bracketCleanInp && bracketCleanCand === bracketCleanInp) {
+    return true;
+  }
+
+  // Check prefix or first word (e.g. "Ahmed" matches "Ahmed (مستودع)" or "Ahmed Ali")
+  const firstWordCand = normCand.split(' ')[0];
+  const firstWordInp = normInp.split(' ')[0];
+  if (firstWordCand && firstWordInp && firstWordCand === firstWordInp && firstWordInp.length >= 3) {
+    return true;
+  }
+
+  if (normCand.includes(normInp) || normInp.includes(normCand)) {
+    return true;
+  }
+
+  return false;
 }
 
 class AuthService {
@@ -76,9 +120,9 @@ class AuthService {
     let accounts: UserAccount[] = [];
 
     if (data.settings.users && data.settings.users.length > 0) {
-      accounts = [...data.settings.users];
+      accounts = data.settings.users.map((u) => ({ ...u }));
     } else {
-      accounts = [...DEFAULT_ACCOUNTS];
+      accounts = DEFAULT_ACCOUNTS.map((u) => ({ ...u }));
     }
 
     // Ensure at least one admin account is present
@@ -96,13 +140,36 @@ class AuthService {
       });
     }
 
-    // Automatically incorporate active employees as potential accounts if not already present
+    // Ensure supervisor account is present
+    const hasSupervisor = accounts.some((u) => u.role === 'supervisor' && u.active !== false);
+    if (!hasSupervisor) {
+      accounts.push({
+        id: 'supervisor-primary',
+        username: 'supervisor',
+        displayName: 'المشرف الميداني',
+        role: 'supervisor',
+        password: '123',
+        pin: '5678',
+        active: true,
+        createdAt: Date.now(),
+      });
+    }
+
+    // Automatically incorporate active employees as potential accounts
     data.employees.forEach((emp) => {
       if (emp.active !== false) {
-        const hasAccount = accounts.some(
-          (u) => u.employeeId === emp.id || (u.role === 'employee' && normalizeString(u.username) === normalizeString(emp.username || emp.name))
+        const existingIdx = accounts.findIndex(
+          (u) => u.employeeId === emp.id || 
+                 (u.role === 'employee' && (isMatchingIdentity(u.username, emp.username) || isMatchingIdentity(u.displayName, emp.name)))
         );
-        if (!hasAccount) {
+
+        if (existingIdx >= 0) {
+          // Sync missing fields from employee record
+          const acc = accounts[existingIdx];
+          if (!acc.employeeId) acc.employeeId = emp.id;
+          if (!acc.password && emp.password) acc.password = emp.password;
+          if (!acc.pin && emp.pin) acc.pin = emp.pin;
+        } else {
           accounts.push({
             id: `emp-auto-${emp.id}`,
             username: emp.username || emp.name,
@@ -136,29 +203,85 @@ class AuthService {
     const data = syncService.getData();
     const accounts = this.getAllAccounts();
     const rawUser = username.trim();
-    const cleanUser = normalizeString(rawUser);
     const cleanPass = password.trim();
-    const directorClean = normalizeString(data.settings.directorName);
 
-    // 1. Search in defined UserAccounts
-    let found = accounts.find((u) => {
-      if (u.active === false) return false;
-      
-      const uUser = normalizeString(u.username);
-      const uDisplay = normalizeString(u.displayName);
-      const rawMatch = (u.username || '').trim().toLowerCase() === rawUser.toLowerCase() || (u.displayName || '').trim().toLowerCase() === rawUser.toLowerCase();
-      const normMatch = uUser === cleanUser || uDisplay === cleanUser;
-      const matchDirector = u.role === 'admin' && directorClean && (directorClean === cleanUser || cleanUser.includes(directorClean) || directorClean.includes(cleanUser));
+    let found: UserAccount | undefined;
 
-      return rawMatch || normMatch || matchDirector;
-    });
+    // 1. If role is EMPLOYEE: Check both accounts and employees list with smart matching
+    if (expectedRole === 'employee') {
+      // Check in user accounts first
+      found = accounts.find((u) => {
+        if (u.role !== 'employee' || u.active === false) return false;
+        return (
+          isMatchingIdentity(u.username, rawUser) ||
+          isMatchingIdentity(u.displayName, rawUser) ||
+          (u.employeeId && isMatchingIdentity(u.employeeId, rawUser))
+        );
+      });
 
-    // 2. Admin special fallbacks (words like "admin", "مدير", etc.)
-    if (!found && expectedRole === 'admin') {
-      const adminKeywords = ['admin', 'مدير', 'المدير', 'المدير العام', 'zead', 'ziad', 'زياد', 'director'];
-      if (adminKeywords.includes(cleanUser) || (directorClean && cleanUser.includes(directorClean)) || (directorClean && directorClean.includes(cleanUser))) {
-        found = accounts.find((u) => u.role === 'admin' && u.active !== false) || {
-          id: 'admin-fallback',
+      // If not found in accounts, check directly in employees collection
+      if (!found) {
+        const matchedEmp = data.employees.find((e) => {
+          if (e.active === false) return false;
+          return (
+            isMatchingIdentity(e.username, rawUser) ||
+            isMatchingIdentity(e.name, rawUser) ||
+            (e.phone && isMatchingIdentity(e.phone, rawUser)) ||
+            (e.id && isMatchingIdentity(e.id, rawUser))
+          );
+        });
+
+        if (matchedEmp) {
+          found = {
+            id: `emp-usr-${matchedEmp.id}`,
+            username: matchedEmp.username || matchedEmp.name,
+            displayName: matchedEmp.name,
+            role: 'employee',
+            employeeId: matchedEmp.id,
+            password: matchedEmp.password || '123',
+            pin: matchedEmp.pin || '1234',
+            active: matchedEmp.active !== false,
+          };
+        }
+      }
+    } 
+    // 2. If role is SUPERVISOR
+    else if (expectedRole === 'supervisor') {
+      const supervisorKeywords = ['supervisor', 'مشرف', 'المشرف', 'المشرف الميداني'];
+      const isKeyword = supervisorKeywords.some((k) => isMatchingIdentity(k, rawUser));
+
+      found = accounts.find((u) => {
+        if (u.role !== 'supervisor' || u.active === false) return false;
+        return isKeyword || isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser);
+      });
+
+      if (!found && isKeyword) {
+        found = {
+          id: 'supervisor-primary',
+          username: 'supervisor',
+          displayName: 'المشرف الميداني',
+          role: 'supervisor',
+          password: '123',
+          pin: '5678',
+          active: true,
+          createdAt: Date.now(),
+        };
+      }
+    }
+    // 3. If role is ADMIN
+    else if (expectedRole === 'admin') {
+      const adminKeywords = ['admin', 'مدير', 'المدير', 'المدير العام', 'zead', 'ziad', 'زياد', 'director', 'cortado', 'كورتادو'];
+      const isKeyword = adminKeywords.some((k) => isMatchingIdentity(k, rawUser)) ||
+                        isMatchingIdentity(data.settings.directorName, rawUser);
+
+      found = accounts.find((u) => {
+        if (u.role !== 'admin' || u.active === false) return false;
+        return isKeyword || isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser);
+      });
+
+      if (!found && isKeyword) {
+        found = {
+          id: 'admin-primary',
           username: data.settings.directorName || 'admin',
           displayName: data.settings.directorName || 'المدير العام',
           role: 'admin',
@@ -169,46 +292,20 @@ class AuthService {
         };
       }
     }
-
-    // 3. Employee portal search across employees collection
-    if (!found || (found && expectedRole === 'employee' && found.role !== 'employee')) {
-      const matchedEmp = data.employees.find((e) => {
-        if (e.active === false) return false;
-        const eUser = normalizeString(e.username);
-        const eName = normalizeString(e.name);
-        const ePhone = (e.phone || '').trim();
-        const rawMatch = (e.username || '').toLowerCase() === rawUser.toLowerCase() || (e.name || '').toLowerCase() === rawUser.toLowerCase();
-        const normMatch = (eUser && eUser === cleanUser) || (eName && eName === cleanUser);
-        const phoneMatch = ePhone && (ePhone === rawUser || ePhone.endsWith(rawUser) || rawUser.endsWith(ePhone));
-        return rawMatch || normMatch || phoneMatch;
+    // 4. Any Role (Generic fallback)
+    else {
+      found = accounts.find((u) => {
+        if (u.active === false) return false;
+        return isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser);
       });
-
-      if (matchedEmp) {
-        found = {
-          id: `emp-usr-${matchedEmp.id}`,
-          username: matchedEmp.username || matchedEmp.name,
-          displayName: matchedEmp.name,
-          role: 'employee',
-          employeeId: matchedEmp.id,
-          password: matchedEmp.password || '123',
-          pin: matchedEmp.pin || '1234',
-          active: matchedEmp.active !== false,
-        };
-      }
     }
 
     if (found) {
-      // If expected role is enforced and doesn't match
-      if (expectedRole && found.role !== expectedRole) {
-        const roleLabel = expectedRole === 'employee' ? 'الموظفين' : expectedRole === 'supervisor' ? 'المشرفين' : 'الإدارة العامة';
-        return { success: false, message: `هذا الحساب ليس مسجلاً في بوابة ${roleLabel}` };
-      }
-
-      // If it's an employee role, link with actual employee record if employeeId missing
+      // If role is employee, link with actual employee record if employeeId is missing
       if (found.role === 'employee' && !found.employeeId) {
         const linked = data.employees.find((e) => 
-          normalizeString(e.username) === normalizeString(found?.username) ||
-          normalizeString(e.name) === normalizeString(found?.displayName)
+          isMatchingIdentity(e.username, found?.username) ||
+          isMatchingIdentity(e.name, found?.displayName)
         );
         if (linked) {
           found.employeeId = linked.id;
@@ -222,6 +319,7 @@ class AuthService {
       // - Account pin
       // - Linked employee password/pin
       // - Default '123'
+      // - Default '1234'
       const validPasswords: string[] = [
         found.password,
         found.pin,
@@ -235,6 +333,7 @@ class AuthService {
           if (emp.password) validPasswords.push(emp.password);
           if (emp.pin) validPasswords.push(emp.pin);
           if (emp.phone && emp.phone.length >= 4) validPasswords.push(emp.phone.slice(-4));
+          if (emp.phone) validPasswords.push(emp.phone);
         }
       }
 

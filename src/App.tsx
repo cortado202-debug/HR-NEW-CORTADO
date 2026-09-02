@@ -173,11 +173,24 @@ export default function App() {
   if (currentUser.role === 'employee') {
     const cleanCurrentUsername = (currentUser.username || '').trim().toLowerCase();
     const cleanCurrentDisplayName = (currentUser.displayName || '').trim().toLowerCase();
+    const cleanNoBracketsDisplayName = cleanCurrentDisplayName.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
 
     const matchedEmployee = 
       data.employees.find((e) => e.id === currentUser.employeeId) ||
       data.employees.find((e) => (e.username && e.username.trim().toLowerCase() === cleanCurrentUsername)) ||
-      data.employees.find((e) => e.name.trim().toLowerCase() === cleanCurrentUsername || (currentUser.displayName && e.name.trim().toLowerCase() === cleanCurrentDisplayName)) ||
+      data.employees.find((e) => {
+        const eName = e.name.trim().toLowerCase();
+        const eNameClean = eName.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+        return (
+          eName === cleanCurrentUsername ||
+          eNameClean === cleanCurrentUsername ||
+          eName === cleanCurrentDisplayName ||
+          eNameClean === cleanCurrentDisplayName ||
+          eNameClean === cleanNoBracketsDisplayName ||
+          eName.includes(cleanCurrentUsername) ||
+          cleanCurrentUsername.includes(eNameClean)
+        );
+      }) ||
       data.employees.find((e) => e.phone && (e.phone === currentUser.username || cleanCurrentUsername.includes(e.phone))) ||
       {
         id: currentUser.employeeId || `emp-${Date.now()}`,
