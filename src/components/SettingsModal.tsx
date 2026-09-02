@@ -185,7 +185,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // Synchronize modal state with latest props whenever modal opens or settings update
   useEffect(() => {
     if (isOpen) {
-      setCompanyName(settings.companyName || 'مؤسسة كورتادو للتجارة');
+      setCompanyName(settings.companyName || 'شركة كورتادو كافيه');
       setDirectorName(settings.directorName || 'زياد');
       setLogoUrl(settings.logoUrl || null);
       setDefaultWorkDays(settings.defaultWorkDays || 26);
@@ -215,11 +215,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Handle Logo Upload (file or base64) with automatic client-side compression
+  // Handle Logo Upload (file or base64) with high efficiency automatic client-side compression
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > 15 * 1024 * 1024) {
         alert('حجم الصورة كبير جداً، يرجى اختيار صورة أصغر');
         return;
       }
@@ -228,10 +228,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const rawResult = event.target?.result as string;
         if (!rawResult) return;
 
-        // Compress image using HTML5 Canvas to keep it ultra lightweight (~20-40KB)
+        // Compress image using HTML5 Canvas to keep it ultra lightweight (~15-30KB)
         const img = new Image();
         img.onload = () => {
-          const maxDimension = 320;
+          const maxDimension = 240;
           let width = img.width;
           let height = img.height;
 
@@ -254,7 +254,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           if (ctx) {
             ctx.clearRect(0, 0, width, height);
             ctx.drawImage(img, 0, 0, width, height);
-            const optimizedDataUrl = canvas.toDataURL('image/png', 0.88);
+            // Use WebP / JPEG format for minimal bytes footprint
+            const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
             setLogoUrl(optimizedDataUrl);
           } else {
             setLogoUrl(rawResult);

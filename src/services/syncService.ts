@@ -390,6 +390,7 @@ class SyncService {
   public async updateSettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
     this.data.settings = { ...this.data.settings, ...settings };
     this.data.lastUpdated = Date.now();
+    this.saveLocal();
     this.notify();
     this.broadcastLocal('SETTINGS_UPDATED', this.data.settings);
 
