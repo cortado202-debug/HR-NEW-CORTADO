@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Employee, CompanySettings, AppData, WorkShift, LateDeductionMode, UserAccount, UserRole } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Employee, CompanySettings, AppData, WorkShift, LateDeductionMode, OvertimeCalculationMode, UserAccount, UserRole } from '../types';
 import { formatSYP, parseSYPInput, getTodayDateString } from '../utils/formatters';
 import { DEFAULT_ACCOUNTS } from '../utils/initialData';
 import { 
@@ -78,6 +78,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   );
   const [departureDeductionAmountRaw, setDepartureDeductionAmountRaw] = useState<string>(
     settings.departureDeductionAmount ? String(settings.departureDeductionAmount) : ''
+  );
+  // Overtime state
+  const [overtimeMode, setOvertimeMode] = useState<OvertimeCalculationMode>(
+    settings.overtimeMode || 'hourly_multiplier'
+  );
+  const [overtimeRateMultiplier, setOvertimeRateMultiplier] = useState<number>(
+    settings.overtimeRateMultiplier || 1.25
+  );
+  const [overtimeAmountPerHourRaw, setOvertimeAmountPerHourRaw] = useState<string>(
+    settings.overtimeAmountPerHour ? String(settings.overtimeAmountPerHour) : ''
+  );
+  const [overtimeAutoCalculate, setOvertimeAutoCalculate] = useState<boolean>(
+    settings.overtimeAutoCalculate !== undefined ? settings.overtimeAutoCalculate : true
   );
   const [maxAdvancePerMonthRaw, setMaxAdvancePerMonthRaw] = useState<string>(
     new Intl.NumberFormat('en-US').format(settings.maxAdvancePerMonth || 2000000)
@@ -169,6 +182,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }, 4000);
   };
 
+  // Synchronize modal state with latest props whenever modal opens or settings update
+  useEffect(() => {
+    if (isOpen) {
+      setCompanyName(settings.companyName || 'مؤسسة كورتادو للتجارة');
+      setDirectorName(settings.directorName || 'زياد');
+      setLogoUrl(settings.logoUrl || null);
+      setDefaultWorkDays(settings.defaultWorkDays || 26);
+      setDefaultWorkHours(settings.defaultWorkHours || 8);
+      setAbsentMultiplier(settings.defaultAbsentDeductionMultiplier || 1.0);
+      setLateDeductionMode(settings.lateDeductionMode || 'proportional_salary');
+      setLateDeductionAmountRaw(settings.lateDeductionAmount ? String(settings.lateDeductionAmount) : '');
+      setDepartureDeductionMode(settings.departureDeductionMode || 'proportional_salary');
+      setDepartureDeductionAmountRaw(settings.departureDeductionAmount ? String(settings.departureDeductionAmount) : '');
+      setOvertimeMode(settings.overtimeMode || 'hourly_multiplier');
+      setOvertimeRateMultiplier(settings.overtimeRateMultiplier || 1.25);
+      setOvertimeAmountPerHourRaw(settings.overtimeAmountPerHour ? String(settings.overtimeAmountPerHour) : '');
+      setOvertimeAutoCalculate(settings.overtimeAutoCalculate !== undefined ? settings.overtimeAutoCalculate : true);
+      setMaxAdvancePerMonthRaw(new Intl.NumberFormat('en-US').format(settings.maxAdvancePerMonth || 2000000));
+      
+      const currentUsers = settings.users && settings.users.length > 0 ? settings.users : DEFAULT_ACCOUNTS;
+      setUsersList(currentUsers);
+      const adminAcc = currentUsers.find((u) => u.role === 'admin') || DEFAULT_ACCOUNTS[0];
+      setAdminUsername(adminAcc?.username || 'admin');
+      setAdminPassword(adminAcc?.password || '123');
+
+      if (settings.shifts && settings.shifts.length > 0) {
+        setShifts(settings.shifts);
+      }
+    }
+  }, [isOpen, settings]);
+
   if (!isOpen) return null;
 
   // Handle Logo Upload (file or base64)
@@ -192,31 +236,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (e) e.preventDefault();
     setIsSavingSettings(true);
     try {
-      // Synchronize admin account details in usersList
-      let currentUsers = customUsers || [...usersList];
-      const adminIndex = currentUsers.findIndex((u) => u.role === 'admin');
-      const cleanAdminUser = adminUsername.trim() || 'admin';
-      const cleanAdminPass = adminPassword.trim() || '123';
-
-      if (adminIndex >= 0) {
-        currentUsers[adminIndex] = {
-          ...currentUsers[adminIndex],
-          username: cleanAdminUser,
-          password: cleanAdminPass,
-          displayName: directorName.trim() || 'المدير العام',
-          active: true,
-        };
+      let currentUsers = customUsers ? [...customUsers] : [...usersList];
+      
+      if (customUsers) {
+        // If coming from Users Tab, find if admin credentials were updated there
+        const adminInCustom = customUsers.find((u) => u.role === 'admin');
+        if (adminInCustom) {
+          setAdminUsername(adminInCustom.username);
+          if (adminInCustom.password) setAdminPassword(adminInCustom.password);
+        }
       } else {
-        currentUsers.unshift({
-          id: 'admin-primary',
-          username: cleanAdminUser,
-          password: cleanAdminPass,
-          displayName: directorName.trim() || 'المدير العام',
-          role: 'admin',
-          pin: '1234',
-          active: true,
-          createdAt: Date.now(),
-        });
+        // If saving from Company / Admin Settings Tab, sync admin details into currentUsers
+        const adminIndex = currentUsers.findIndex((u) => u.role === 'admin');
+        const cleanAdminUser = adminUsername.trim() || 'admin';
+        const cleanAdminPass = adminPassword.trim() || '123';
+
+        if (adminIndex >= 0) {
+          currentUsers[adminIndex] = {
+            ...currentUsers[adminIndex],
+            username: cleanAdminUser,
+            password: cleanAdminPass,
+            displayName: directorName.trim() || 'المدير العام',
+            active: true,
+          };
+        } else {
+          currentUsers.unshift({
+            id: 'admin-primary',
+            username: cleanAdminUser,
+            password: cleanAdminPass,
+            displayName: directorName.trim() || 'المدير العام',
+            role: 'admin',
+            pin: '1234',
+            active: true,
+            createdAt: Date.now(),
+          });
+        }
       }
       setUsersList(currentUsers);
 
@@ -231,6 +285,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         lateDeductionAmount: lateDeductionAmountRaw ? Number(lateDeductionAmountRaw) : undefined,
         departureDeductionMode,
         departureDeductionAmount: departureDeductionAmountRaw ? Number(departureDeductionAmountRaw) : undefined,
+        overtimeMode,
+        overtimeRateMultiplier: Number(overtimeRateMultiplier) || 1.25,
+        overtimeAmountPerHour: overtimeAmountPerHourRaw ? Number(overtimeAmountPerHourRaw) : undefined,
+        overtimeAutoCalculate,
         maxAdvancePerMonth: parseSYPInput(maxAdvancePerMonthRaw) || 2000000,
         shifts,
         users: currentUsers,
@@ -539,8 +597,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>قواعد الخصم والغياب</span>
+            <Sliders className="w-3.5 h-3.5 text-emerald-600" />
+            <span>قواعد الخصومات والعمل الإضافي</span>
           </button>
 
           <button
@@ -1805,6 +1863,91 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       />
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Overtime Rules Section (قواعد احتساب العمل الإضافي) */}
+              <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl flex flex-col gap-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-700" />
+                    <h4 className="text-xs sm:text-sm font-bold text-emerald-950">قواعد احتساب العمل الإضافي (ساعات العمل الإضافية)</h4>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-200/60 text-emerald-900 rounded-md border border-emerald-300">
+                    +مستحقات تضاف للراتب
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800">
+                  حدد كيف يحتسب النظام أجر الساعات الإضافية للموظفين عند تسجيل الانصراف بعد انتهاء الشفت أو العمل في أوقات إضافية:
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-700">طريقة احتساب أجر الساعة الإضافية</label>
+                    <select
+                      value={overtimeMode}
+                      onChange={(e) => setOvertimeMode(e.target.value as OvertimeCalculationMode)}
+                      className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:ring-1 focus:ring-emerald-500"
+                    >
+                      <option value="fixed_hour">مبلغ محدد وثابت لكل ساعة إضافية (SYP) لجميع الموظفين</option>
+                      <option value="hourly_multiplier">تناسبي مع الراتب بمضاعف لسعر الساعة (1.25x / 1.5x / 2.0x)</option>
+                      <option value="proportional_salary">أجر الساعة الأساسي العادي بدون مضاعف (1.0x)</option>
+                    </select>
+                  </div>
+
+                  {overtimeMode === 'fixed_hour' && (
+                    <div className="flex flex-col gap-1.5 animate-fadeIn">
+                      <label className="text-xs font-bold text-slate-700">
+                        قيمة الساعة الإضافية الثابتة (ل.س / ساعة)
+                      </label>
+                      <div className="relative flex items-center">
+                        <input
+                          type="number"
+                          step="1000"
+                          placeholder="مثال: 15000 أو 20000"
+                          value={overtimeAmountPerHourRaw}
+                          onChange={(e) => setOvertimeAmountPerHourRaw(e.target.value)}
+                          className="w-full bg-white border border-emerald-300 rounded-lg px-3 py-2 pl-12 text-xs font-mono font-bold text-emerald-950 outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                        <span className="absolute left-3 text-[10px] font-bold text-emerald-700">ل.س/س</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400">سيتم ضرب هذا المبلغ بعدد ساعات الإضافي لكل موظف</span>
+                    </div>
+                  )}
+
+                  {overtimeMode === 'hourly_multiplier' && (
+                    <div className="flex flex-col gap-1.5 animate-fadeIn">
+                      <label className="text-xs font-bold text-slate-700">
+                        مضاعف أجر الساعة الإضافية (معامل الضرب)
+                      </label>
+                      <select
+                        value={overtimeRateMultiplier}
+                        onChange={(e) => setOvertimeRateMultiplier(parseFloat(e.target.value))}
+                        className="bg-white border border-emerald-300 rounded-lg px-3 py-2 text-xs font-bold text-emerald-950 outline-none focus:ring-1 focus:ring-emerald-500"
+                      >
+                        <option value={1.25}>ساعة وربع (1.25x من أجر ساعة الموظف)</option>
+                        <option value={1.5}>ساعة ونصف (1.50x من أجر ساعة الموظف - الشائع)</option>
+                        <option value={1.75}>ساعة وثلاثة أرباع (1.75x)</option>
+                        <option value={2.0}>ساعتين مضاعفة (2.00x - عطل رسمية وليالي)</option>
+                      </select>
+                      <span className="text-[10px] text-slate-400">يحسب تلقائياً من راتب كل موظف الأساسي</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Auto Calculate Checkbox */}
+                <div className="pt-2 border-t border-emerald-200/60 flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={overtimeAutoCalculate}
+                      onChange={(e) => setOvertimeAutoCalculate(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                    />
+                    <span className="text-xs font-semibold text-slate-800">
+                      احتساب ساعات الإضافي تلقائياً عند تسجيل الانصراف بعد موعد انتهاء الشفت أو الساعات المحددة
+                    </span>
+                  </label>
                 </div>
               </div>
 

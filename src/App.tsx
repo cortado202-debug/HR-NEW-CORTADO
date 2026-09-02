@@ -9,6 +9,7 @@ import { MonthlyPayrollModal } from './components/MonthlyPayrollModal';
 import { SettingsModal } from './components/SettingsModal';
 import { LateAttendanceModal } from './components/LateAttendanceModal';
 import { DepartureModal } from './components/DepartureModal';
+import { OvertimeModal } from './components/OvertimeModal';
 import { AdvanceReceiptModal } from './components/AdvanceReceiptModal';
 import { EmployeePayslipModal } from './components/EmployeePayslipModal';
 import { AdvancesLedgerModal } from './components/AdvancesLedgerModal';
@@ -45,6 +46,11 @@ export default function App() {
     date: string;
   } | null>(null);
   const [departureModalData, setDepartureModalData] = useState<{
+    employee: Employee;
+    record: AttendanceRecord | null;
+    date: string;
+  } | null>(null);
+  const [overtimeModalData, setOvertimeModalData] = useState<{
     employee: Employee;
     record: AttendanceRecord | null;
     date: string;
@@ -116,6 +122,11 @@ export default function App() {
   // Open departure modal (تسجيل مغادرة وإذن خروج)
   const handleOpenDepartureModal = (employee: Employee, record: AttendanceRecord | null, date: string) => {
     setDepartureModalData({ employee, record, date });
+  };
+
+  // Open overtime modal (تسجيل انصراف وعمل إضافي)
+  const handleOpenOvertimeModal = (employee: Employee, record: AttendanceRecord | null, date: string) => {
+    setOvertimeModalData({ employee, record, date });
   };
 
   // View receipt from any section
@@ -263,7 +274,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Top Section: Daily Operations & Attendance (تسجيل الحضور والغياب والتأخيرات والمغادرات) */}
+        {/* Top Section: Daily Operations & Attendance (تسجيل الحضور والغياب والتأخيرات والمغادرات والعمل الإضافي) */}
         <AttendanceSection
           employees={data.employees}
           attendance={data.attendance}
@@ -272,6 +283,7 @@ export default function App() {
           onBulkUpdateAttendance={handleBulkUpdateAttendance}
           onOpenLateModal={handleOpenLateModal}
           onOpenDepartureModal={handleOpenDepartureModal}
+          onOpenOvertimeModal={handleOpenOvertimeModal}
           onOpenLedger={() => setIsAttendanceLedgerOpen(true)}
         />
 
@@ -392,6 +404,19 @@ export default function App() {
           date={departureModalData.date}
           settings={data.settings}
           onConfirm={handleUpdateAttendance}
+        />
+      )}
+
+      {/* Overtime (انصراف / عمل إضافي ومستحقات) Configuration Modal */}
+      {overtimeModalData && (
+        <OvertimeModal
+          isOpen={true}
+          onClose={() => setOvertimeModalData(null)}
+          employee={overtimeModalData.employee}
+          record={overtimeModalData.record}
+          date={overtimeModalData.date}
+          settings={data.settings}
+          onSave={handleUpdateAttendance}
         />
       )}
 

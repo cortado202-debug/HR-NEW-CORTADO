@@ -45,6 +45,14 @@ export function parseSYPInput(val: string): number {
 }
 
 /**
+ * Format plain number with thousand separators
+ */
+export function formatNumberWithCommas(num: number | string | undefined | null): string {
+  if (num === undefined || num === null || isNaN(Number(num))) return '0';
+  return new Intl.NumberFormat('en-US').format(Math.round(Number(num)));
+}
+
+/**
  * Get current date in YYYY-MM-DD
  */
 export function getTodayDateString(): string {

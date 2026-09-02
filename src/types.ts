@@ -66,6 +66,10 @@ export interface AttendanceRecord {
   departureMinutes?: number; // عدد دقائق المغادرة
   departureReason?: string; // سبب المغادرة
   departureDeduction?: number; // مبلغ خصم المغادرة بالليرة السورية
+  overtimeHours?: number; // عدد ساعات العمل الإضافي (مثلاً 1, 1.5, 2)
+  overtimeMinutes?: number; // عدد دقائق العمل الإضافي
+  overtimePay?: number; // مبلغ الإضافي المحتسب بالليرة السورية لهذا اليوم
+  overtimeReason?: string; // بيان أو سبب العمل الإضافي
   shiftId?: string;
   shiftName?: string;
   customDeduction?: number; // SYP
@@ -88,6 +92,7 @@ export interface SalaryAdvance {
 }
 
 export type LateDeductionMode = 'proportional_salary' | 'fixed_hour' | 'fixed_minute' | 'multiplier';
+export type OvertimeCalculationMode = 'hourly_multiplier' | 'fixed_hour' | 'proportional_salary';
 
 export interface CompanySettings {
   companyName: string;
@@ -101,6 +106,11 @@ export interface CompanySettings {
   lateDeductionAmount?: number; // SYP amount per hour / minute or multiplier
   departureDeductionMode?: 'proportional_salary' | 'fixed_hour' | 'none';
   departureDeductionAmount?: number; // SYP per hour of departure
+  // Overtime Calculation Rules (قواعد احتساب العمل الإضافي)
+  overtimeMode?: OvertimeCalculationMode; // 'hourly_multiplier' | 'fixed_hour' | 'proportional_salary'
+  overtimeRateMultiplier?: number; // e.g. 1.25, 1.5, 2.0 (default 1.25)
+  overtimeAmountPerHour?: number; // Fixed SYP per hour (e.g. 15,000 SYP/hr)
+  overtimeAutoCalculate?: boolean; // Automatically calculate overtime from checkout time
   directorName: string;
   workStartTime: string; // '08:00'
   workEndTime: string; // '17:00'
@@ -131,6 +141,8 @@ export interface EmployeeMonthlySummary {
   daysHalfDay: number;
   totalLateMinutes: number;
   totalDepartureHours: number;
+  totalOvertimeHours: number;
+  totalOvertimePay: number;
   totalAdvances: number;
   advancesCount: number;
   absentDeductions: number;

@@ -70,6 +70,8 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
         acc.baseSalary += s.baseSalary;
         acc.advances += s.totalAdvances;
         acc.deductions += s.totalDeductions;
+        acc.overtimePay += s.totalOvertimePay || 0;
+        acc.overtimeHours += s.totalOvertimeHours || 0;
         acc.netSalary += s.netSalary;
         acc.presentDays += s.daysPresent;
         acc.absentDays += s.daysAbsent;
@@ -80,6 +82,8 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
         baseSalary: 0,
         advances: 0,
         deductions: 0,
+        overtimePay: 0,
+        overtimeHours: 0,
         netSalary: 0,
         presentDays: 0,
         absentDays: 0,
@@ -97,6 +101,8 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
       'أيام الحضور',
       'أيام الغياب',
       'أيام التأخير',
+      'ساعات العمل الإضافي',
+      'مستحقات العمل الإضافي (ل.س)',
       'خصومات الغياب والتأخير (ل.س)',
       'إجمالي السلف (ل.س)',
       'صافي الراتب المستحق (ل.س)',
@@ -109,6 +115,8 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
       s.daysPresent,
       s.daysAbsent,
       s.daysLate,
+      s.totalOvertimeHours || 0,
+      s.totalOvertimePay || 0,
       s.totalDeductions,
       s.totalAdvances,
       s.netSalary,
@@ -220,12 +228,22 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
         </div>
 
         {/* Totals Summary Ribbon */}
-        <div className="p-3 sm:p-4 bg-white border-b border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2.5 no-print">
+        <div className="p-3 sm:p-4 bg-white border-b border-slate-100 grid grid-cols-2 sm:grid-cols-5 gap-2.5 no-print">
           
           <div className="bg-[#F8FAFC] border border-slate-200 rounded-lg p-2.5">
             <div className="text-[10px] font-bold text-slate-500">إجمالي الرواتب الأساسية</div>
             <div className="text-sm sm:text-base font-bold font-mono text-slate-900 mt-0.5">
               {formatSYP(totals.baseSalary)}
+            </div>
+          </div>
+
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
+            <div className="text-[10px] font-bold text-emerald-800">مجموع العمل الإضافي</div>
+            <div className="text-sm sm:text-base font-bold font-mono text-emerald-700 mt-0.5">
+              +{formatSYP(totals.overtimePay)}
+            </div>
+            <div className="text-[9px] text-emerald-600 font-mono mt-0.5">
+              ({totals.overtimeHours} ساعة إضافية)
             </div>
           </div>
 
@@ -278,6 +296,7 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
                 <th className="p-2.5">الراتب الأساسي</th>
                 <th className="p-2.5 text-center">أيام الحضور</th>
                 <th className="p-2.5 text-center">الغياب / التأخير</th>
+                <th className="p-2.5 text-emerald-800">العمل الإضافي</th>
                 <th className="p-2.5">خصومات الدوام</th>
                 <th className="p-2.5">إجمالي السلف</th>
                 <th className="p-2.5">صافي المستحق</th>
@@ -330,6 +349,18 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
                     </div>
                   </td>
 
+                  {/* Overtime */}
+                  <td className="p-2.5 font-mono font-semibold text-emerald-700">
+                    {s.totalOvertimeHours > 0 ? (
+                      <div>
+                        <div>+{formatSYP(s.totalOvertimePay)}</div>
+                        <div className="text-[10px] text-emerald-600 font-normal">({s.totalOvertimeHours} ساعة)</div>
+                      </div>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+
                   {/* Deductions */}
                   <td className="p-2.5 font-mono font-semibold text-rose-600">
                     {s.totalDeductions > 0 ? (
@@ -365,7 +396,7 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
                   <td className="p-2.5 text-center no-print">
                     <button
                       onClick={() => onViewEmployeeSlip(s)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 border border-emerald-200 hover:border-emerald-600 rounded text-[11px] font-bold transition-all shadow-2xs"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 border border-emerald-200 hover:border-emerald-600 rounded text-[11px] font-bold transition-all shadow-2xs cursor-pointer"
                       title="عرض وتنزيل كشف الحساب التفصيلي الشهري كملف PDF"
                     >
                       <Download className="w-3 h-3" />
@@ -386,6 +417,7 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
                 <td className="p-2.5 text-center font-mono text-[11px]">
                   {totals.absentDays} غياب / {totals.lateDays} تأخير
                 </td>
+                <td className="p-2.5 font-mono text-emerald-300">+{formatSYP(totals.overtimePay)} ({totals.overtimeHours}س)</td>
                 <td className="p-2.5 font-mono text-rose-300">{formatSYP(totals.deductions)}</td>
                 <td className="p-2.5 font-mono text-amber-300">{formatSYP(totals.advances)}</td>
                 <td className="p-2.5 font-mono text-emerald-300 text-xs sm:text-sm font-bold bg-slate-800">

@@ -11,6 +11,7 @@ interface AttendanceSectionProps {
   onBulkUpdateAttendance: (records: AttendanceRecord[]) => Promise<boolean>;
   onOpenLateModal: (employee: Employee, record: AttendanceRecord | null, date: string) => void;
   onOpenDepartureModal: (employee: Employee, record: AttendanceRecord | null, date: string) => void;
+  onOpenOvertimeModal?: (employee: Employee, record: AttendanceRecord | null, date: string) => void;
   onOpenLedger?: () => void;
 }
 
@@ -22,6 +23,7 @@ export const AttendanceSection: React.FC<AttendanceSectionProps> = ({
   onBulkUpdateAttendance,
   onOpenLateModal,
   onOpenDepartureModal,
+  onOpenOvertimeModal,
   onOpenLedger,
 }) => {
   return (
@@ -35,6 +37,7 @@ export const AttendanceSection: React.FC<AttendanceSectionProps> = ({
         onUpdateAttendance={onUpdateAttendance}
         onOpenLateModal={onOpenLateModal}
         onOpenDepartureModal={onOpenDepartureModal}
+        onOpenOvertimeModal={onOpenOvertimeModal}
         onOpenLedger={onOpenLedger}
       />
 
@@ -47,6 +50,7 @@ export const AttendanceSection: React.FC<AttendanceSectionProps> = ({
         onBulkUpdateAttendance={onBulkUpdateAttendance}
         onOpenLateModal={onOpenLateModal}
         onOpenDepartureModal={onOpenDepartureModal}
+        onOpenOvertimeModal={onOpenOvertimeModal}
         onOpenLedger={onOpenLedger}
       />
 

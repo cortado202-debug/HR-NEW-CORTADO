@@ -11,7 +11,9 @@ import {
   evaluateLateForShift, 
   calculateDayDeduction, 
   calculateDailyRate, 
-  calculateHourlyRate 
+  calculateHourlyRate,
+  calculateOvertimeDuration,
+  calculateOvertimePay
 } from '../utils/payrollMath';
 import { 
   Calendar, 
@@ -30,7 +32,8 @@ import {
   RotateCcw,
   Sparkles,
   Zap,
-  Edit2
+  Edit2,
+  LogOut
 } from 'lucide-react';
 
 interface DailyAttendanceRosterProps {
@@ -41,6 +44,7 @@ interface DailyAttendanceRosterProps {
   onBulkUpdateAttendance: (records: AttendanceRecord[]) => Promise<boolean>;
   onOpenLateModal: (employee: Employee, record: AttendanceRecord | null, date: string) => void;
   onOpenDepartureModal: (employee: Employee, record: AttendanceRecord | null, date: string) => void;
+  onOpenOvertimeModal?: (employee: Employee, record: AttendanceRecord | null, date: string) => void;
   onOpenLedger?: () => void;
 }
 
@@ -52,6 +56,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
   onBulkUpdateAttendance,
   onOpenLateModal,
   onOpenDepartureModal,
+  onOpenOvertimeModal,
   onOpenLedger,
 }) => {
   const todayStr = getTodayDateString();
@@ -99,6 +104,8 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
   let dayTotalDepartureHours = 0;
   let dayTotalLateMins = 0;
   let dayTotalDeductions = 0;
+  let dayTotalOvertimeHours = 0;
+  let dayTotalOvertimePay = 0;
 
   activeEmployees.forEach((emp) => {
     const rec = attendance[`${emp.id}_${selectedDate}`];
@@ -113,6 +120,19 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
       if (rec.departureHours && rec.departureHours > 0) {
         dayDepartures++;
         dayTotalDepartureHours += rec.departureHours;
+      }
+
+      if (rec.overtimeHours && rec.overtimeHours > 0) {
+        dayTotalOvertimeHours += rec.overtimeHours;
+        if (rec.overtimePay !== undefined && rec.overtimePay > 0) {
+          dayTotalOvertimePay += rec.overtimePay;
+        } else {
+          const workDays = emp.monthlyWorkDays || settings.defaultWorkDays || 26;
+          const workHours = emp.dailyWorkHours || settings.defaultWorkHours || 8;
+          const dailyRate = calculateDailyRate(emp.baseSalary, workDays);
+          const hourlyRate = calculateHourlyRate(dailyRate, workHours);
+          dayTotalOvertimePay += calculateOvertimePay(rec.overtimeHours, hourlyRate, settings);
+        }
       }
 
       const { deduction } = calculateDayDeduction(emp, rec, settings);
@@ -283,7 +303,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
         </div>
 
         {/* Day Metric Pills Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mt-4 pt-3 border-t border-slate-100 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-7 gap-2 mt-4 pt-3 border-t border-slate-100 text-xs">
           <div className="bg-[#F8FAFC] p-2 rounded-lg border border-slate-200/80 flex items-center justify-between">
             <span className="text-slate-500 font-semibold">حاضر:</span>
             <span className="font-bold font-mono text-emerald-700 text-sm">{dayPresent}</span>
@@ -296,6 +316,15 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
             <span className="text-slate-500 font-semibold">مغادرات:</span>
             <span className="font-bold font-mono text-indigo-700 text-sm">{dayDepartures} ({dayTotalDepartureHours} س)</span>
           </div>
+          <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-200 flex items-center justify-between">
+            <span className="text-emerald-800 font-semibold flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-emerald-600" />
+              إضافي:
+            </span>
+            <span className="font-bold font-mono text-emerald-700 text-sm">
+              +{formatSYP(dayTotalOvertimePay)} ({dayTotalOvertimeHours}س)
+            </span>
+          </div>
           <div className="bg-[#F8FAFC] p-2 rounded-lg border border-slate-200/80 flex items-center justify-between">
             <span className="text-slate-500 font-semibold">غائب:</span>
             <span className="font-bold font-mono text-rose-700 text-sm">{dayAbsent}</span>
@@ -305,7 +334,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
             <span className="font-bold font-mono text-sky-700 text-sm">{dayHalfDay}</span>
           </div>
           <div className="col-span-2 sm:col-span-1 bg-slate-900 text-white p-2 rounded-lg flex items-center justify-between shadow-2xs">
-            <span className="text-slate-300 text-[11px] font-semibold">خصومات اليوم:</span>
+            <span className="text-slate-300 text-[11px] font-semibold">خصومات:</span>
             <span className="font-bold font-mono text-rose-400 text-xs sm:text-sm">{formatSYP(dayTotalDeductions)}</span>
           </div>
         </div>
@@ -364,6 +393,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
               <th className="p-3">الموظف</th>
               <th className="p-3">الشفت المعتمد</th>
               <th className="p-3">وقت الحضور</th>
+              <th className="p-3">انصراف / إضافي</th>
               <th className="p-3">مغادرة / إذن</th>
               <th className="p-3">حالة اليوم</th>
               <th className="p-3">دقائق التأخير</th>
@@ -375,7 +405,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
           <tbody className="divide-y divide-slate-100">
             {filteredEmployees.length === 0 ? (
               <tr>
-                <td colSpan={10} className="p-8 text-center bg-slate-50/50">
+                <td colSpan={11} className="p-8 text-center bg-slate-50/50">
                   <div className="flex flex-col items-center justify-center gap-2 text-slate-500">
                     <UserCheck className="w-8 h-8 text-slate-300 stroke-[1.5]" />
                     <p className="text-xs font-bold text-slate-700">لا يوجد موظفون مسجلون حالياً</p>
@@ -390,6 +420,15 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
               const rec = attendance[`${emp.id}_${selectedDate}`];
               const shift = matchShiftForTime(rec?.checkInTime || '08:00', settings.shifts, emp.assignedShiftId);
               const { deduction, lateDeduction, departureDeduction } = calculateDayDeduction(emp, rec, settings);
+
+              let otPay = rec?.overtimePay || 0;
+              if (rec?.overtimeHours && rec.overtimeHours > 0 && !rec.overtimePay) {
+                const workDays = emp.monthlyWorkDays || settings.defaultWorkDays || 26;
+                const workHours = emp.dailyWorkHours || settings.defaultWorkHours || 8;
+                const dailyRate = calculateDailyRate(emp.baseSalary, workDays);
+                const hourlyRate = calculateHourlyRate(dailyRate, workHours);
+                otPay = calculateOvertimePay(rec.overtimeHours, hourlyRate, settings);
+              }
 
               return (
                 <tr 
@@ -423,6 +462,27 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
                   {/* Check In Time */}
                   <td className="p-3 font-mono font-bold text-slate-800">
                     {rec?.checkInTime || <span className="text-slate-300 font-normal">--:--</span>}
+                  </td>
+
+                  {/* Check Out & Overtime */}
+                  <td className="p-3">
+                    {rec?.checkOutTime || (rec?.overtimeHours && rec.overtimeHours > 0) ? (
+                      <div className="flex flex-col gap-0.5">
+                        {rec.checkOutTime && (
+                          <span className="font-mono font-bold text-slate-800 text-[11px]">
+                            خروج: {rec.checkOutTime}
+                          </span>
+                        )}
+                        {rec.overtimeHours && rec.overtimeHours > 0 && (
+                          <span className="inline-flex items-center gap-1 font-bold text-[10px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                            <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                            <span>+{formatSYP(otPay)} ({rec.overtimeHours}س)</span>
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-300 font-normal">—</span>
+                    )}
                   </td>
 
                   {/* Departure (مغادرة / إذن) */}
@@ -498,7 +558,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
 
                   {/* Note */}
                   <td className="p-3 text-slate-600 max-w-[160px] truncate text-[11px]">
-                    {rec?.note || <span className="text-slate-300">—</span>}
+                    {rec?.note || rec?.overtimeReason || <span className="text-slate-300">—</span>}
                   </td>
 
                   {/* Fast Punch Action Buttons */}
@@ -509,7 +569,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
                       <button
                         onClick={() => handleQuickRowPunch(emp, 'present')}
                         title="حضور الآن بضغطة زر"
-                        className={`p-1.5 rounded-lg border transition-all ${
+                        className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                           rec?.status === 'present'
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
                             : 'bg-white hover:bg-emerald-50 text-emerald-700 border-slate-200'
@@ -518,11 +578,24 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
                         <Check className="w-3.5 h-3.5" />
                       </button>
 
+                      {/* Overtime Modal */}
+                      <button
+                        onClick={() => onOpenOvertimeModal?.(emp, rec, selectedDate)}
+                        title="تسجيل وتعديل العمل الإضافي والانصراف"
+                        className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                          rec?.overtimeHours && rec.overtimeHours > 0
+                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
+                            : 'bg-white hover:bg-emerald-50 text-emerald-800 border-slate-200'
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                      </button>
+
                       {/* Custom Late Modal */}
                       <button
                         onClick={() => onOpenLateModal(emp, rec, selectedDate)}
                         title="تعديل التأخير بدقة والخصم"
-                        className={`p-1.5 rounded-lg border transition-all ${
+                        className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                           rec?.status === 'late'
                             ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
                             : 'bg-white hover:bg-amber-50 text-amber-700 border-slate-200'
@@ -535,7 +608,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
                       <button
                         onClick={() => onOpenDepartureModal(emp, rec, selectedDate)}
                         title="تسجيل مغادرة / إذن خروج وتحديد الساعات"
-                        className={`p-1.5 rounded-lg border transition-all ${
+                        className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                           rec?.departureHours && rec.departureHours > 0
                             ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
                             : 'bg-white hover:bg-indigo-50 text-indigo-700 border-slate-200'
@@ -548,7 +621,7 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
                       <button
                         onClick={() => handleQuickRowPunch(emp, 'absent')}
                         title="تسجيل غياب اليوم"
-                        className={`p-1.5 rounded-lg border transition-all ${
+                        className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                           rec?.status === 'absent'
                             ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
                             : 'bg-white hover:bg-rose-50 text-rose-700 border-slate-200'

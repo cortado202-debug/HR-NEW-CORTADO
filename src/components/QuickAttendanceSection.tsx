@@ -11,7 +11,9 @@ import {
   evaluateLateForShift, 
   calculateDayDeduction, 
   calculateDailyRate,
-  calculateHourlyRate
+  calculateHourlyRate,
+  calculateOvertimeDuration,
+  calculateOvertimePay
 } from '../utils/payrollMath';
 import { 
   UserCheck, 
@@ -31,7 +33,8 @@ import {
   MessageSquare,
   ShieldCheck,
   Check,
-  X
+  X,
+  LogOut
 } from 'lucide-react';
 
 interface QuickAttendanceSectionProps {
@@ -42,6 +45,7 @@ interface QuickAttendanceSectionProps {
   onBulkUpdateAttendance?: (records: AttendanceRecord[]) => Promise<boolean>;
   onOpenLateModal?: (employee: Employee, record: AttendanceRecord | null, date: string) => void;
   onOpenDepartureModal?: (employee: Employee, record: AttendanceRecord | null, date: string) => void;
+  onOpenOvertimeModal?: (employee: Employee, record: AttendanceRecord | null, date: string) => void;
   onOpenLedger?: () => void;
 }
 
@@ -53,6 +57,7 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
   onBulkUpdateAttendance,
   onOpenLateModal,
   onOpenDepartureModal,
+  onOpenOvertimeModal,
   onOpenLedger,
 }) => {
   const todayStr = getTodayDateString();
@@ -126,6 +131,8 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
   let todayHalfDay = 0;
   let todayTotalDeductions = 0;
   let todayTotalLateMinutes = 0;
+  let todayTotalOvertimeHours = 0;
+  let todayTotalOvertimePay = 0;
 
   activeEmployees.forEach((emp) => {
     const rec = attendance[`${emp.id}_${date}`];
@@ -139,6 +146,19 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
 
       const { deduction } = calculateDayDeduction(emp, rec, settings);
       todayTotalDeductions += deduction;
+
+      if (rec.overtimeHours && rec.overtimeHours > 0) {
+        todayTotalOvertimeHours += rec.overtimeHours;
+        if (rec.overtimePay !== undefined && rec.overtimePay > 0) {
+          todayTotalOvertimePay += rec.overtimePay;
+        } else {
+          const workDays = emp.monthlyWorkDays || settings.defaultWorkDays || 26;
+          const workHours = emp.dailyWorkHours || settings.defaultWorkHours || 8;
+          const dailyRate = calculateDailyRate(emp.baseSalary, workDays);
+          const hourlyRate = calculateHourlyRate(dailyRate, workHours);
+          todayTotalOvertimePay += calculateOvertimePay(rec.overtimeHours, hourlyRate, settings);
+        }
+      }
     }
   });
 
@@ -213,6 +233,93 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
     }
     if (onOpenDepartureModal) {
       onOpenDepartureModal(selectedEmployee, existingRecord, date);
+    }
+  };
+
+  // Open Overtime modal for selected employee
+  const handleOpenOvertime = () => {
+    if (!selectedEmployeeId || !selectedEmployee) {
+      alert('يرجى اختيار الموظف أولاً من القائمة');
+      return;
+    }
+    if (onOpenOvertimeModal) {
+      onOpenOvertimeModal(selectedEmployee, existingRecord, date);
+    }
+  };
+
+  // 1-Click Fast Check Out (تسجيل الانصراف السريع واحتساب الإضافي)
+  const handleQuickCheckOut = async () => {
+    if (!selectedEmployeeId || !selectedEmployee) {
+      alert('يرجى اختيار الموظف أولاً من القائمة');
+      return;
+    }
+
+    const punchDate = date || todayStr;
+    const punchTime = time || getCurrentTimeString();
+    const checkIn = existingRecord?.checkInTime || matchedShift.startTime;
+
+    setIsSubmitting(true);
+    try {
+      // Calculate overtime if auto calculate is on
+      let otHours = existingRecord?.overtimeHours || 0;
+      let otPay = existingRecord?.overtimePay;
+
+      if (settings.overtimeAutoCalculate !== false) {
+        const otCalc = calculateOvertimeDuration(
+          checkIn,
+          punchTime,
+          matchedShift,
+          selectedEmployee.dailyWorkHours || settings.defaultWorkHours || 8
+        );
+        if (otCalc.overtimeHours > 0) {
+          otHours = otCalc.overtimeHours;
+          const workDays = selectedEmployee.monthlyWorkDays || settings.defaultWorkDays || 26;
+          const workHours = selectedEmployee.dailyWorkHours || settings.defaultWorkHours || 8;
+          const dailyRate = calculateDailyRate(selectedEmployee.baseSalary, workDays);
+          const hourlyRate = calculateHourlyRate(dailyRate, workHours);
+          otPay = calculateOvertimePay(otHours, hourlyRate, settings);
+        }
+      }
+
+      const rec: AttendanceRecord = {
+        id: existingRecord?.id || `${selectedEmployee.id}_${punchDate}`,
+        employeeId: selectedEmployee.id,
+        date: punchDate,
+        status: (existingRecord?.status && existingRecord.status !== 'absent') ? existingRecord.status : 'present',
+        checkInTime: checkIn,
+        checkOutTime: punchTime,
+        lateMinutes: existingRecord?.lateMinutes,
+        departureTime: existingRecord?.departureTime,
+        departureHours: existingRecord?.departureHours,
+        departureMinutes: existingRecord?.departureMinutes,
+        departureReason: existingRecord?.departureReason,
+        departureDeduction: existingRecord?.departureDeduction,
+        overtimeHours: otHours > 0 ? otHours : undefined,
+        overtimeMinutes: otHours > 0 ? Math.round(otHours * 60) : undefined,
+        overtimePay: otPay && otPay > 0 ? otPay : undefined,
+        overtimeReason: note.trim() || existingRecord?.overtimeReason || undefined,
+        shiftId: matchedShift.id,
+        shiftName: matchedShift.name,
+        note: existingRecord?.note || (note.trim() ? note.trim() : undefined),
+        updatedAt: Date.now(),
+      };
+
+      await onUpdateAttendance(rec);
+
+      const overtimeMsg = otHours > 0 && otPay && otPay > 0 
+        ? ` (إضافي: ${otHours} ساعة = +${formatSYP(otPay)} تضاف للراتب)` 
+        : '';
+
+      setSuccessMessage({
+        text: `تم تسجيل انصراف "${selectedEmployee.name}" الساعة (${punchTime})${overtimeMsg}`,
+        type: 'checkout',
+      });
+      setTimeout(() => setSuccessMessage(null), 6000);
+      setNote('');
+    } catch (err) {
+      alert('حدث خطأ أثناء تسجيل الانصراف');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -552,19 +659,45 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
               disabled={isSubmitting || !selectedEmployeeId}
               onClick={handleQuickCheckIn}
               id="btn-quick-punch-in"
-              className="flex-1 min-w-[200px] flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm rounded-lg shadow-2xs transition-all"
+              className="flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 active:bg-slate-950 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm rounded-lg shadow-2xs transition-all cursor-pointer"
             >
               <Zap className="w-4 h-4 text-emerald-400 fill-emerald-400" />
               <span>
                 {lateEvaluation.isLate 
-                  ? `تسجيل حضور (متأخر ${lateEvaluation.lateMinutes} دقيقة)` 
-                  : 'تسجيل حضور الآن (في الموعد)'}
+                  ? `تسجيل حضور (متأخر ${lateEvaluation.lateMinutes} د)` 
+                  : 'تسجيل حضور الآن'}
               </span>
+            </button>
+
+            {/* Fast Check Out Action (انصراف) */}
+            <button
+              type="button"
+              disabled={isSubmitting || !selectedEmployeeId}
+              onClick={handleQuickCheckOut}
+              id="btn-quick-punch-out"
+              title="تسجيل وقت الانصراف واحتساب الساعات الإضافية تلقائياً"
+              className="flex-1 min-w-[150px] flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm rounded-lg shadow-2xs transition-all cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 text-emerald-200" />
+              <span>تسجيل انصراف</span>
             </button>
 
             {/* Secondary Actions */}
             <div className="flex items-center gap-1.5 w-full sm:w-auto">
               
+              {/* Overtime (عمل إضافي مخصص) */}
+              <button
+                type="button"
+                disabled={isSubmitting || !selectedEmployeeId}
+                onClick={handleOpenOvertime}
+                id="btn-quick-overtime"
+                title="تسجيل وتعديل ساعات العمل الإضافي المضافة للراتب"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>+إضافي</span>
+              </button>
+
               {/* Departure (مغادرة / إذن خروج) */}
               <button
                 type="button"
@@ -572,7 +705,7 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
                 onClick={handleOpenDeparture}
                 id="btn-quick-departure"
                 title="تسجيل مغادرة وتحديد كم ساعة مع الخصم"
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
               >
                 <DoorOpen className="w-3.5 h-3.5 text-indigo-600" />
                 <span>مغادرة</span>
@@ -585,7 +718,7 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
                 onClick={handleMarkAbsent}
                 id="btn-quick-mark-absent"
                 title="تسجيل غياب كامل اليوم"
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5 text-rose-500" />
                 <span>غياب</span>
@@ -598,7 +731,7 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
                 onClick={handleMarkHalfDay}
                 id="btn-quick-mark-halfday"
                 title="تسجيل نصف يوم عمل"
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-sky-50 text-sky-700 border border-sky-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2.5 bg-white hover:bg-sky-50 text-sky-700 border border-sky-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
               >
                 <SunMedium className="w-3.5 h-3.5 text-sky-500" />
                 <span>نصف يوم</span>
@@ -630,28 +763,46 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1 pt-1 border-t border-slate-200/60">
-              <span className="text-emerald-700 font-semibold">حاضر بالموعد: {todayPresent}</span>
+              <span className="text-emerald-700 font-semibold">حاضر: {todayPresent}</span>
               <span className="text-amber-700 font-semibold">متأخر: {todayLate}</span>
               <span className="text-rose-700 font-semibold">غائب: {todayAbsent}</span>
             </div>
           </div>
 
-          {/* Today Delays & Automatic Deductions Card */}
-          <div className="bg-slate-900 text-white rounded-xl p-3.5 flex flex-col justify-between shadow-2xs">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold text-slate-300">خصومات وتأخيرات اليوم</span>
-              <div className="flex items-center gap-1 text-[10px] text-amber-400 bg-slate-800 px-2 py-0.5 rounded font-mono font-bold">
-                <Clock className="w-3 h-3" />
-                <span>{todayTotalLateMinutes} دقيقة تأخير</span>
+          {/* Today Overtime & Deductions Grid Card */}
+          <div className="grid grid-cols-2 gap-2">
+            
+            {/* Overtime Today Card */}
+            <div className="bg-emerald-950 text-white rounded-xl p-3 flex flex-col justify-between shadow-2xs border border-emerald-800">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                  إضافي اليوم
+                </span>
+                <span className="text-[10px] font-mono font-bold text-emerald-200 bg-emerald-900/80 px-1.5 py-0.5 rounded">
+                  {todayTotalOvertimeHours} س
+                </span>
               </div>
+              <div className="text-sm sm:text-base font-bold font-mono text-emerald-400">
+                +{formatSYP(todayTotalOvertimePay)}
+              </div>
+              <span className="text-[9px] text-emerald-300/80 mt-0.5">يضاف لمستحقات الراتب</span>
             </div>
-            <div className="text-lg md:text-xl font-bold font-mono text-rose-400">
-              {formatSYP(todayTotalDeductions)}
+
+            {/* Deductions Today Card */}
+            <div className="bg-slate-900 text-white rounded-xl p-3 flex flex-col justify-between shadow-2xs border border-slate-800">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-bold text-slate-300">خصومات اليوم</span>
+                <span className="text-[10px] font-mono font-bold text-amber-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                  {todayTotalLateMinutes} د
+                </span>
+              </div>
+              <div className="text-sm sm:text-base font-bold font-mono text-rose-400">
+                {formatSYP(todayTotalDeductions)}
+              </div>
+              <span className="text-[9px] text-slate-400 mt-0.5">تخصم من الراتب</span>
             </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-400 mt-0.5">
-              <span>تخصم تلقائياً عند إعداد الرواتب</span>
-              <span className="text-slate-300 font-bold">{formatArabicDate(date)}</span>
-            </div>
+
           </div>
 
         </div>
@@ -684,8 +835,9 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
                     <th className="p-2">الحالة</th>
                     <th className="p-2">وقت الحضور</th>
                     <th className="p-2">وقت الانصراف</th>
-                    <th className="p-2">الشفت / مدة التأخير</th>
-                    <th className="p-2">خصم اليوم (SYP)</th>
+                    <th className="p-2">الشفت / التأخير</th>
+                    <th className="p-2 text-emerald-800">إضافي (SYP)</th>
+                    <th className="p-2 text-rose-800">خصم (SYP)</th>
                     <th className="p-2">البيان</th>
                   </tr>
                 </thead>
@@ -694,6 +846,15 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
                     const rec = attendance[`${emp.id}_${date}`];
                     if (!rec) return null;
                     const { deduction } = calculateDayDeduction(emp, rec, settings);
+
+                    let otPay = rec.overtimePay || 0;
+                    if (rec.overtimeHours && rec.overtimeHours > 0 && !rec.overtimePay) {
+                      const workDays = emp.monthlyWorkDays || settings.defaultWorkDays || 26;
+                      const workHours = emp.dailyWorkHours || settings.defaultWorkHours || 8;
+                      const dailyRate = calculateDailyRate(emp.baseSalary, workDays);
+                      const hourlyRate = calculateHourlyRate(dailyRate, workHours);
+                      otPay = calculateOvertimePay(rec.overtimeHours, hourlyRate, settings);
+                    }
 
                     return (
                       <tr key={emp.id} className="hover:bg-slate-50 transition-colors">
@@ -731,11 +892,18 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
                             </span>
                           )}
                         </td>
+                        <td className="p-2 font-mono font-bold text-emerald-700">
+                          {rec.overtimeHours && rec.overtimeHours > 0 ? (
+                            <span title={`${rec.overtimeHours} ساعة إضافي`}>
+                              +{formatSYP(otPay)} ({rec.overtimeHours}س)
+                            </span>
+                          ) : '—'}
+                        </td>
                         <td className="p-2 font-mono font-bold text-rose-700">
                           {deduction > 0 ? formatSYP(deduction) : '0 ل.س'}
                         </td>
                         <td className="p-2 text-slate-500 max-w-[150px] truncate">
-                          {rec.note || '—'}
+                          {rec.note || rec.overtimeReason || '—'}
                         </td>
                       </tr>
                     );

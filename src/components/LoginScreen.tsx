@@ -215,7 +215,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       <Lock className="w-3.5 h-3.5 text-emerald-600" />
                       <span>كلمة المرور</span>
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">الافتراضية: 123</span>
                   </label>
                   <div className="relative flex items-center">
                     <input
@@ -346,7 +345,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       <Lock className="w-3.5 h-3.5 text-slate-600" />
                       <span>كلمة المرور</span>
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">الافتراضية: 123</span>
                   </label>
                   <div className="relative flex items-center">
                     <input
@@ -455,16 +453,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       <User className="w-3.5 h-3.5 text-slate-700" />
                       <span>اسم مستخدم المدير العام</span>
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      (admin أو {settings.directorName || 'اسمك'})
-                    </span>
                   </label>
                   <input
                     id="username-admin"
                     name="username"
                     type="text"
                     autoComplete="username"
-                    placeholder={settings.directorName ? `admin أو ${settings.directorName}` : 'admin'}
+                    placeholder="اسم المستخدم"
                     value={adminUsername}
                     onChange={(e) => setAdminUsername(e.target.value)}
                     required
@@ -479,7 +474,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       <Lock className="w-3.5 h-3.5 text-slate-700" />
                       <span>كلمة المرور</span>
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">الافتراضية: 123</span>
                   </label>
                   <div className="relative flex items-center">
                     <input

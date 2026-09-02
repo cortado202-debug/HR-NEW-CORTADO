@@ -138,13 +138,13 @@ class AuthService {
       }
 
       const validPassword = found.password || '123';
-      const validPin = found.pin || '1234';
+      const validPin = found.pin || '';
       
-      // Allow configured password, PIN, or default '123'
-      const isPasswordMatch = cleanPass === validPassword || cleanPass === validPin || cleanPass === '123';
+      // Check against configured password or configured PIN
+      const isPasswordMatch = cleanPass === validPassword || (validPin !== '' && cleanPass === validPin);
 
       if (!isPasswordMatch) {
-        return { success: false, message: 'كلمة المرور غير صحيحة. (كلمة المرور الافتراضية: 123)' };
+        return { success: false, message: 'كلمة المرور غير صحيحة' };
       }
 
       this.saveSession(found);
@@ -174,7 +174,7 @@ class AuthService {
       ].filter(Boolean);
 
       if (!allowedPasswords.includes(cleanPass)) {
-        return { success: false, message: 'كلمة المرور غير صحيحة (الافتراضية: 123)' };
+        return { success: false, message: 'كلمة المرور غير صحيحة' };
       }
 
       const empUser: UserAccount = {
@@ -191,7 +191,7 @@ class AuthService {
 
     return { 
       success: false, 
-      message: `اسم المستخدم "${username}" غير مسجل. يمكنك استخدام (admin) أو اسمك (${data.settings.directorName || 'المدير'}) مع كلمة المرور (123).` 
+      message: 'اسم المستخدم غير موجود أو غير مفعل' 
     };
   }
 

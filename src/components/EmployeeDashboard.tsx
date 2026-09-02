@@ -225,7 +225,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
       </div>
 
       {/* Personal Summary Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
         
         {/* Days Present */}
         <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
@@ -236,6 +236,24 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
           <div className="text-lg sm:text-xl font-bold font-mono text-slate-900">
             {summary.daysPresent} <span className="text-xs font-normal text-slate-500">يوم</span>
           </div>
+        </div>
+
+        {/* Overtime */}
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 shadow-2xs">
+          <div className="flex items-center justify-between text-emerald-800 mb-1">
+            <span className="text-xs font-semibold">العمل الإضافي</span>
+            <Sparkles className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-sm sm:text-base font-bold font-mono text-emerald-700 truncate">
+            {summary.totalOvertimeHours > 0 ? (
+              <span>+{formatSYP(summary.totalOvertimePay)}</span>
+            ) : (
+              <span className="text-emerald-600/70 font-normal">0 ل.س</span>
+            )}
+          </div>
+          <span className="text-[10px] text-emerald-600 font-mono block">
+            {summary.totalOvertimeHours || 0} ساعة إضافية
+          </span>
         </div>
 
         {/* Days Absent */}
@@ -261,7 +279,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
         </div>
 
         {/* Estimated Net Salary */}
-        <div className="bg-slate-900 text-white rounded-xl p-3.5 shadow-2xs">
+        <div className="bg-slate-900 text-white rounded-xl p-3.5 shadow-2xs col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between text-slate-300 mb-1">
             <span className="text-xs font-semibold">صافي الراتب المتوقع</span>
             <TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -314,6 +332,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
                       <th className="p-2.5">الحالة</th>
                       <th className="p-2.5">وقت الدخول</th>
                       <th className="p-2.5">وقت الخروج</th>
+                      <th className="p-2.5 text-emerald-800">العمل الإضافي</th>
                       <th className="p-2.5">الشفت / ملاحظات</th>
                     </tr>
                   </thead>
@@ -334,10 +353,19 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
                             {rec.checkInTime || '—'}
                           </td>
                           <td className="p-2.5 font-mono text-slate-700">
-                            {rec.checkOutTime || '—'}
+                            {rec.checkOutTime || (rec.departureHours ? `${rec.departureHours}س مغادرة` : '—')}
+                          </td>
+                          <td className="p-2.5 font-mono text-emerald-700 font-bold">
+                            {rec.overtimeHours && rec.overtimeHours > 0 ? (
+                              <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px]">
+                                +{rec.overtimeHours} ساعة
+                              </span>
+                            ) : (
+                              '—'
+                            )}
                           </td>
                           <td className="p-2.5 text-slate-500 text-[11px]">
-                            {rec.shiftName || rec.note || '—'}
+                            {rec.overtimeReason || rec.departureReason || rec.shiftName || rec.note || '—'}
                           </td>
                         </tr>
                       );

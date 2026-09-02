@@ -23,7 +23,8 @@ import {
   ChevronRight, 
   ChevronLeft,
   Users,
-  Download
+  Download,
+  Sparkles
 } from 'lucide-react';
 
 interface AttendanceLedgerModalProps {
@@ -80,7 +81,9 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
   // Totals for this month
   const totalLateMinsMonth = monthlySummaries.reduce((sum, s) => sum + s.totalLateMinutes, 0);
   const totalAbsentDaysMonth = monthlySummaries.reduce((sum, s) => sum + s.daysAbsent, 0);
-  const totalDeductionsMonth = monthlySummaries.reduce((sum, s) => sum + (s.absentDeductions + s.lateDeductions + s.halfDayDeductions), 0);
+  const totalDeductionsMonth = monthlySummaries.reduce((sum, s) => sum + (s.absentDeductions + s.lateDeductions + (s.departureDeductions || 0) + s.halfDayDeductions), 0);
+  const totalOvertimeHoursMonth = monthlySummaries.reduce((sum, s) => sum + (s.totalOvertimeHours || 0), 0);
+  const totalOvertimePayMonth = monthlySummaries.reduce((sum, s) => sum + (s.totalOvertimePay || 0), 0);
 
   const handlePrint = () => {
     triggerPrint();
@@ -98,10 +101,10 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                سجل وكشف الحضور والغياب والتأخيرات الشهري
+                سجل وكشف الحضور والغياب والتأخيرات والعمل الإضافي
               </h2>
               <p className="text-xs text-slate-500">
-                متابعة دقيقة لعدد أيام الحضور، الغياب، وإجمالي دقائق التأخير والخصومات لكل موظف
+                متابعة دقيقة لعدد أيام الحضور، الغياب، دقائق التأخير، ساعات المغادرة والعمل الإضافي
               </p>
             </div>
           </div>
@@ -109,7 +112,7 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
           <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
               onClick={handlePrint}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-lg border border-slate-200 flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-lg border border-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Printer className="w-4 h-4 text-slate-600" />
               <span>طباعة الكشف</span>
@@ -173,7 +176,7 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
           <div className="flex items-center bg-slate-200/70 p-1 rounded-lg w-full md:w-auto">
             <button
               onClick={() => setActiveTab('monthly_summary')}
-              className={`flex-1 md:flex-none text-xs font-bold px-3 py-1 rounded-md transition-all ${
+              className={`flex-1 md:flex-none text-xs font-bold px-3 py-1 rounded-md transition-all cursor-pointer ${
                 activeTab === 'monthly_summary'
                   ? 'bg-white text-slate-900 shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -183,7 +186,7 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('detailed_log')}
-              className={`flex-1 md:flex-none text-xs font-bold px-3 py-1 rounded-md transition-all ${
+              className={`flex-1 md:flex-none text-xs font-bold px-3 py-1 rounded-md transition-all cursor-pointer ${
                 activeTab === 'detailed_log'
                   ? 'bg-white text-slate-900 shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -196,24 +199,29 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
         </div>
 
         {/* Top Summary Banner */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:p-4 bg-slate-50 border-b border-slate-200 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-3 sm:p-4 bg-slate-50 border-b border-slate-200 text-center">
           <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-            <span className="text-[11px] text-slate-500 font-semibold block">إجمالي دقائق التأخير للشهر</span>
+            <span className="text-[11px] text-slate-500 font-semibold block">دقائق التأخير للشهر</span>
             <span className="text-base sm:text-lg font-bold font-mono text-amber-700">{totalLateMinsMonth} دقيقة</span>
             <span className="text-[10px] text-slate-400 block font-mono">({Math.round((totalLateMinsMonth / 60) * 10) / 10} ساعة)</span>
           </div>
+          <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 shadow-2xs">
+            <span className="text-[11px] text-emerald-800 font-semibold block">ساعات العمل الإضافي</span>
+            <span className="text-base sm:text-lg font-bold font-mono text-emerald-700">+{formatSYP(totalOvertimePayMonth)}</span>
+            <span className="text-[10px] text-emerald-600 block font-mono">({totalOvertimeHoursMonth} ساعة إضافية)</span>
+          </div>
           <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-            <span className="text-[11px] text-slate-500 font-semibold block">إجمالي أيام الغياب المسجلة</span>
+            <span className="text-[11px] text-slate-500 font-semibold block">أيام الغياب المسجلة</span>
             <span className="text-base sm:text-lg font-bold font-mono text-rose-700">{totalAbsentDaysMonth} يوم</span>
           </div>
           <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-            <span className="text-[11px] text-slate-500 font-semibold block">إجمالي ساعات المغادرات</span>
+            <span className="text-[11px] text-slate-500 font-semibold block">ساعات المغادرات</span>
             <span className="text-base sm:text-lg font-bold font-mono text-indigo-700">
               {monthlySummaries.reduce((acc, s) => acc + (s.totalDepartureHours || 0), 0)} س
             </span>
           </div>
-          <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-            <span className="text-[11px] text-slate-500 font-semibold block">إجمالي خصومات الدوام والمغادرات</span>
+          <div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs col-span-2 sm:col-span-1">
+            <span className="text-[11px] text-slate-500 font-semibold block">خصومات الدوام</span>
             <span className="text-base sm:text-lg font-bold font-mono text-slate-900">{formatSYP(totalDeductionsMonth)}</span>
           </div>
         </div>
@@ -235,6 +243,7 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
                     <th className="p-3 text-center">مرات التأخير</th>
                     <th className="p-3 text-center">مجموع دقائق التأخير</th>
                     <th className="p-3 text-center">ساعات المغادرة</th>
+                    <th className="p-3 text-center text-emerald-800">إضافي الدوام</th>
                     <th className="p-3 text-center">نصف يوم</th>
                     <th className="p-3">إجمالي الخصومات (SYP)</th>
                   </tr>
@@ -260,6 +269,16 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
                       <td className="p-3 text-center font-mono font-bold text-indigo-700 bg-indigo-50/40">
                         {sum.totalDepartureHours || 0} س
                       </td>
+                      <td className="p-3 text-center font-mono font-bold text-emerald-700 bg-emerald-50/40">
+                        {sum.totalOvertimeHours > 0 ? (
+                          <div>
+                            <div>+{sum.totalOvertimeHours} س</div>
+                            <div className="text-[10px] text-emerald-600 font-normal">({formatSYP(sum.totalOvertimePay)})</div>
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className="p-3 text-center font-mono text-sky-700">
                         {sum.daysHalfDay}
                       </td>
@@ -281,6 +300,7 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
                     <th className="p-3">الموظف</th>
                     <th className="p-3">الحالة</th>
                     <th className="p-3">وقت الحضور</th>
+                    <th className="p-3">انصراف / إضافي</th>
                     <th className="p-3">المغادرة</th>
                     <th className="p-3">الشفت</th>
                     <th className="p-3">دقائق التأخير</th>
@@ -291,7 +311,7 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {allRecordsInMonth.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="p-8 text-center text-slate-400">
+                      <td colSpan={10} className="p-8 text-center text-slate-400">
                         لا توجد سجلات مسجلة لهذا الشهر
                       </td>
                     </tr>
@@ -322,6 +342,17 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
                           </td>
                           <td className="p-3 font-mono text-slate-700 font-bold">{rec.checkInTime || '—'}</td>
                           <td className="p-3 font-mono text-slate-700">
+                            {rec.checkOutTime ? (
+                              <span className="font-bold text-slate-800">{rec.checkOutTime}</span>
+                            ) : rec.overtimeHours && rec.overtimeHours > 0 ? (
+                              <span className="text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                +{rec.overtimeHours}س إضافي
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className="p-3 font-mono text-slate-700">
                             {rec.departureHours ? (
                               <span className="text-indigo-800 bg-indigo-50 font-bold px-1.5 py-0.5 rounded border border-indigo-200">
                                 {rec.departureHours}س ({rec.departureTime || '—'})
@@ -344,7 +375,7 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
                             {deduction > 0 ? formatSYP(deduction) : <span className="text-slate-300 font-normal">0 ل.س</span>}
                           </td>
                           <td className="p-3 text-[11px] text-slate-500 max-w-[180px] truncate">
-                            {rec.departureReason || rec.note || reason || '—'}
+                            {rec.overtimeReason || rec.departureReason || rec.note || reason || '—'}
                           </td>
                         </tr>
                       );

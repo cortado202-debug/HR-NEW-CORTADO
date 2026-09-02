@@ -157,6 +157,132 @@ export function calculateLateDeduction(
 }
 
 /**
+ * Evaluates punch out time and calculate overtime minutes and hours based on shift end time or work hours.
+ */
+export function calculateOvertimeDuration(
+  checkInTime: string,
+  checkOutTime: string,
+  shift?: WorkShift,
+  dailyWorkHours: number = 8
+): { overtimeMinutes: number; overtimeHours: number; totalWorkedHours: number; reason: string } {
+  if (!checkOutTime || !checkInTime) {
+    return { overtimeMinutes: 0, overtimeHours: 0, totalWorkedHours: 0, reason: '' };
+  }
+
+  const inMins = timeToMinutes(checkInTime);
+  let outMins = timeToMinutes(checkOutTime);
+
+  // Handle shifts crossing midnight (e.g., 17:00 to 02:00)
+  if (outMins < inMins) {
+    outMins += 1440;
+  }
+
+  const totalWorkedMins = outMins - inMins;
+  const totalWorkedHours = Math.round((totalWorkedMins / 60) * 10) / 10;
+
+  // If shift exists, compare against shift end time or shift duration
+  let shiftEndMins = shift?.endTime ? timeToMinutes(shift.endTime) : (inMins + dailyWorkHours * 60);
+  if (shift && shiftEndMins < timeToMinutes(shift.startTime)) {
+    shiftEndMins += 1440;
+  }
+
+  let excessMins = 0;
+
+  if (shift && shift.endTime) {
+    // Check excess past shift end time
+    if (outMins > shiftEndMins) {
+      excessMins = outMins - shiftEndMins;
+    }
+  } else {
+    // Compare against standard daily work hours
+    const standardMins = dailyWorkHours * 60;
+    if (totalWorkedMins > standardMins) {
+      excessMins = totalWorkedMins - standardMins;
+    }
+  }
+
+  if (excessMins > 0) {
+    const overtimeHours = Math.round((excessMins / 60) * 10) / 10;
+    return {
+      overtimeMinutes: excessMins,
+      overtimeHours,
+      totalWorkedHours,
+      reason: `عمل إضافي ${overtimeHours} ساعة (${excessMins} دقيقة بعد نهاية الدوام)`
+    };
+  }
+
+  return {
+    overtimeMinutes: 0,
+    overtimeHours: 0,
+    totalWorkedHours,
+    reason: ''
+  };
+}
+
+/**
+ * Calculates overtime pay in SYP based on manager's configured rules in settings.
+ */
+export function calculateOvertimePay(
+  overtimeHours: number,
+  hourlyRate: number,
+  settings?: CompanySettings
+): number {
+  if (!overtimeHours || overtimeHours <= 0) return 0;
+
+  const mode = settings?.overtimeMode || 'hourly_multiplier';
+
+  if (mode === 'fixed_hour') {
+    const fixedAmount = (settings?.overtimeAmountPerHour && settings.overtimeAmountPerHour > 0)
+      ? settings.overtimeAmountPerHour
+      : hourlyRate;
+    return Math.round(overtimeHours * fixedAmount);
+  }
+
+  if (mode === 'hourly_multiplier') {
+    const multiplier = (settings?.overtimeRateMultiplier && settings.overtimeRateMultiplier > 0)
+      ? settings.overtimeRateMultiplier
+      : 1.25;
+    return Math.round(overtimeHours * hourlyRate * multiplier);
+  }
+
+  // 'proportional_salary' / default 1.0x hourly rate
+  return Math.round(overtimeHours * hourlyRate);
+}
+
+/**
+ * Calculates daily overtime pay for a single attendance record.
+ */
+export function calculateDayOvertime(
+  record?: AttendanceRecord,
+  hourlyRate: number = 0,
+  settings?: CompanySettings
+): { overtimeHours: number; overtimePay: number; reason: string } {
+  if (!record) {
+    return { overtimeHours: 0, overtimePay: 0, reason: '' };
+  }
+
+  if (record.overtimePay !== undefined && record.overtimePay > 0) {
+    return {
+      overtimeHours: record.overtimeHours || 0,
+      overtimePay: record.overtimePay,
+      reason: record.overtimeReason || (record.overtimeHours ? `إضافي ${record.overtimeHours} ساعة` : 'مكافأة إضافي')
+    };
+  }
+
+  const hours = record.overtimeHours || (record.overtimeMinutes ? record.overtimeMinutes / 60 : 0);
+  if (hours <= 0) {
+    return { overtimeHours: 0, overtimePay: 0, reason: '' };
+  }
+
+  const pay = calculateOvertimePay(hours, hourlyRate, settings);
+  return {
+    overtimeHours: hours,
+    overtimePay: pay,
+    reason: record.overtimeReason || `إضافي ${hours} ساعة (+${pay} ل.س)`
+  };
+}
+
+/**
  * Calculates departure deduction in SYP based on hours/minutes.
  */
 export function calculateDepartureDeduction(
@@ -185,9 +311,16 @@ export function calculateDayDeduction(
   employee: Employee,
   record?: AttendanceRecord,
   settings?: CompanySettings
-): { deduction: number; lateDeduction: number; departureDeduction: number; reason: string } {
+): { 
+  deduction: number; 
+  lateDeduction: number; 
+  departureDeduction: number; 
+  overtimeHours: number;
+  overtimePay: number;
+  reason: string;
+} {
   if (!record) {
-    return { deduction: 0, lateDeduction: 0, departureDeduction: 0, reason: '' };
+    return { deduction: 0, lateDeduction: 0, departureDeduction: 0, overtimeHours: 0, overtimePay: 0, reason: '' };
   }
 
   const workDays = employee.monthlyWorkDays || settings?.defaultWorkDays || 26;
@@ -196,13 +329,16 @@ export function calculateDayDeduction(
   const hourlyRate = calculateHourlyRate(dailyRate, workHours);
 
   const depDeduction = calculateDepartureDeduction(record, hourlyRate, settings);
+  const { overtimeHours, overtimePay } = calculateDayOvertime(record, hourlyRate, settings);
 
   if (record.customDeduction && record.customDeduction > 0) {
     return { 
       deduction: record.customDeduction + depDeduction, 
       lateDeduction: record.customDeduction,
       departureDeduction: depDeduction,
-      reason: 'خصم مخصص' + (depDeduction > 0 ? ` + خصم مغادرة (${record.departureHours || 0} س)` : '')
+      overtimeHours,
+      overtimePay,
+      reason: 'خصم مخصص' + (depDeduction > 0 ? ` + خصم مغادرة (${record.departureHours || 0} س)` : '') + (overtimeHours > 0 ? ` + إضافي (${overtimeHours} س)` : '')
     };
   }
 
@@ -210,18 +346,25 @@ export function calculateDayDeduction(
     case 'absent': {
       const multiplier = employee.absentDeductionRate || settings?.defaultAbsentDeductionMultiplier || 1.0;
       const deduction = Math.round(dailyRate * multiplier);
-      return { deduction, lateDeduction: 0, departureDeduction: 0, reason: `غياب يوم (${multiplier} يوم)` };
+      return { deduction, lateDeduction: 0, departureDeduction: 0, overtimeHours: 0, overtimePay: 0, reason: `غياب يوم (${multiplier} يوم)` };
     }
     case 'half_day': {
       const deduction = Math.round(dailyRate * 0.5) + depDeduction;
-      return { deduction, lateDeduction: Math.round(dailyRate * 0.5), departureDeduction: depDeduction, reason: 'نصف يوم عمل' };
+      return { 
+        deduction, 
+        lateDeduction: Math.round(dailyRate * 0.5), 
+        departureDeduction: depDeduction, 
+        overtimeHours,
+        overtimePay,
+        reason: 'نصف يوم عمل' + (overtimeHours > 0 ? ` + إضافي ${overtimeHours} س` : '')
+      };
     }
     case 'late': {
       const lateMins = record.lateMinutes || 60;
       const lateDed = calculateLateDeduction(lateMins, hourlyRate, settings, employee);
       const totalDed = lateDed + depDeduction;
-      const reason = `تأخير ${lateMins} دقيقة` + (depDeduction > 0 ? ` + مغادرة ${record.departureHours} س` : '');
-      return { deduction: totalDed, lateDeduction: lateDed, departureDeduction: depDeduction, reason };
+      const reason = `تأخير ${lateMins} دقيقة` + (depDeduction > 0 ? ` + مغادرة ${record.departureHours} س` : '') + (overtimeHours > 0 ? ` + إضافي ${overtimeHours} س` : '');
+      return { deduction: totalDed, lateDeduction: lateDed, departureDeduction: depDeduction, overtimeHours, overtimePay, reason };
     }
     case 'present': {
       if (depDeduction > 0) {
@@ -229,18 +372,27 @@ export function calculateDayDeduction(
           deduction: depDeduction, 
           lateDeduction: 0, 
           departureDeduction: depDeduction, 
-          reason: `مغادرة مبكرة ${record.departureHours || (record.departureMinutes ? (record.departureMinutes / 60).toFixed(1) : 0)} ساعة` 
+          overtimeHours,
+          overtimePay,
+          reason: `مغادرة مبكرة ${record.departureHours || (record.departureMinutes ? (record.departureMinutes / 60).toFixed(1) : 0)} ساعة` + (overtimeHours > 0 ? ` + إضافي ${overtimeHours} س` : '')
         };
       }
-      return { deduction: 0, lateDeduction: 0, departureDeduction: 0, reason: '' };
+      return { 
+        deduction: 0, 
+        lateDeduction: 0, 
+        departureDeduction: 0, 
+        overtimeHours,
+        overtimePay,
+        reason: overtimeHours > 0 ? `إضافي ${overtimeHours} ساعة` : '' 
+      };
     }
     default:
-      return { deduction: depDeduction, lateDeduction: 0, departureDeduction: depDeduction, reason: '' };
+      return { deduction: depDeduction, lateDeduction: 0, departureDeduction: depDeduction, overtimeHours, overtimePay, reason: '' };
   }
 }
 
 /**
- * Computes monthly summary for an employee across attendance records and advances.
+ * Computes monthly summary for an employee across attendance records, advances, and overtime.
  */
 export function computeEmployeeMonthlySummary(
   employee: Employee,
@@ -260,6 +412,8 @@ export function computeEmployeeMonthlySummary(
   let daysHalfDay = 0;
   let totalLateMinutes = 0;
   let totalDepartureHours = 0;
+  let totalOvertimeHours = 0;
+  let totalOvertimePay = 0;
   let absentDeductions = 0;
   let lateDeductions = 0;
   let departureDeductions = 0;
@@ -273,6 +427,15 @@ export function computeEmployeeMonthlySummary(
         totalDepartureHours += record.departureHours;
       } else if (record.departureMinutes && record.departureMinutes > 0) {
         totalDepartureHours += record.departureMinutes / 60;
+      }
+
+      // Track overtime hours and pay
+      const { overtimeHours, overtimePay } = calculateDayOvertime(record, hourlyRate, settings);
+      if (overtimeHours > 0) {
+        totalOvertimeHours += overtimeHours;
+      }
+      if (overtimePay > 0) {
+        totalOvertimePay += overtimePay;
       }
 
       const depDed = calculateDepartureDeduction(record, hourlyRate, settings);
@@ -312,7 +475,9 @@ export function computeEmployeeMonthlySummary(
 
   const totalAdvances = empAdvances.reduce((sum, adv) => sum + (adv.amount || 0), 0);
   const totalDeductions = absentDeductions + lateDeductions + halfDayDeductions + departureDeductions;
-  const netSalary = Math.max(0, employee.baseSalary - totalAdvances - totalDeductions);
+  
+  // Net salary formula includes overtime addition
+  const netSalary = Math.max(0, employee.baseSalary + totalOvertimePay - totalAdvances - totalDeductions);
 
   return {
     employee,
@@ -326,6 +491,8 @@ export function computeEmployeeMonthlySummary(
     daysHalfDay,
     totalLateMinutes,
     totalDepartureHours: Math.round(totalDepartureHours * 10) / 10,
+    totalOvertimeHours: Math.round(totalOvertimeHours * 10) / 10,
+    totalOvertimePay,
     totalAdvances,
     advancesCount: empAdvances.length,
     absentDeductions,

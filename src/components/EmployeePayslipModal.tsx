@@ -20,7 +20,8 @@ import {
   XCircle, 
   AlertCircle, 
   FileText,
-  Receipt
+  Receipt,
+  Sparkles
 } from 'lucide-react';
 import { downloadPdfFromElement, triggerPrint } from '../utils/printPdfUtils';
 
@@ -325,7 +326,7 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
             </div>
 
             {/* Financial Summary KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
               
               <div className="p-2 rounded-lg border border-slate-200 bg-white shadow-2xs">
                 <div className="text-[9px] font-bold text-slate-500 flex items-center justify-between">
@@ -334,6 +335,19 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
                 </div>
                 <div className="text-xs font-bold font-mono text-slate-900 mt-0.5">
                   {formatSYP(currentSummary.baseSalary)}
+                </div>
+              </div>
+
+              <div className="p-2 rounded-lg border border-emerald-200 bg-emerald-50/70 shadow-2xs">
+                <div className="text-[9px] font-bold text-emerald-800 flex items-center justify-between">
+                  <span>إضافي الدوام</span>
+                  <Sparkles className="w-3 h-3 text-emerald-600" />
+                </div>
+                <div className="text-xs font-bold font-mono text-emerald-700 mt-0.5">
+                  +{formatSYP(currentSummary.totalOvertimePay || 0)}
+                </div>
+                <div className="text-[8.5px] text-emerald-600 font-semibold">
+                  ({currentSummary.totalOvertimeHours || 0} ساعة إضافية)
                 </div>
               </div>
 
@@ -480,9 +494,11 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
                       <th className="p-1.5">التاريخ واليوم</th>
                       <th className="p-1.5 text-center">حالة الدوام</th>
                       <th className="p-1.5 text-center">وقت الحضور</th>
+                      <th className="p-1.5 text-center">انصراف / إضافي</th>
                       <th className="p-1.5 text-center">المغادرة / إذن</th>
                       <th className="p-1.5 text-center">التأخير</th>
-                      <th className="p-1.5 text-left">الخصم المحتسب</th>
+                      <th className="p-1.5 text-left text-emerald-800">إضافي (+SYP)</th>
+                      <th className="p-1.5 text-left text-rose-800">خصم (-SYP)</th>
                       <th className="p-1.5">البيان والملاحظات</th>
                     </tr>
                   </thead>
@@ -490,6 +506,12 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
                     {employeeMonthAttendance.length > 0 ? (
                       employeeMonthAttendance.map((rec, idx) => {
                         const { deduction, lateDeduction, departureDeduction, reason } = calculateDayDeduction(currentEmployee, rec, settings);
+                        
+                        let otPay = rec.overtimePay || 0;
+                        if (rec.overtimeHours && rec.overtimeHours > 0 && !rec.overtimePay) {
+                          otPay = (currentSummary.hourlyRate || 0) * rec.overtimeHours * (settings.overtimeRateMultiplier || 1.25);
+                        }
+
                         return (
                           <tr key={rec.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#F8FAFC]/50'}>
                             <td className="p-1.5 text-center font-mono font-bold text-slate-400">{idx + 1}</td>
@@ -529,6 +551,17 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
                               {rec.checkInTime || '—'}
                             </td>
 
+                            {/* Check Out & Overtime info */}
+                            <td className="p-1.5 text-center font-mono">
+                              {rec.checkOutTime ? (
+                                <span className="font-bold text-slate-800">{rec.checkOutTime}</span>
+                              ) : rec.overtimeHours && rec.overtimeHours > 0 ? (
+                                <span className="text-emerald-700 font-bold">+{rec.overtimeHours}س</span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+
                             {/* Departure */}
                             <td className="p-1.5 text-center">
                               {rec.departureHours && rec.departureHours > 0 ? (
@@ -547,6 +580,15 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
                               {rec.lateMinutes && rec.lateMinutes > 0 ? `${rec.lateMinutes}د` : <span className="text-slate-300 font-normal">—</span>}
                             </td>
 
+                            {/* Overtime Pay */}
+                            <td className="p-1.5 font-mono font-bold text-emerald-700 text-left">
+                              {otPay > 0 ? (
+                                <span>+{formatSYP(otPay)}</span>
+                              ) : (
+                                <span className="text-slate-300 font-normal">—</span>
+                              )}
+                            </td>
+
                             {/* Deduction Amount */}
                             <td className="p-1.5 font-mono font-bold text-rose-700 text-left">
                               {deduction > 0 ? (
@@ -558,28 +600,32 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
 
                             {/* Reason / Notes */}
                             <td className="p-1.5 text-[9.5px] text-slate-600">
-                              {rec.note || rec.departureReason || reason || <span className="text-slate-400">—</span>}
+                              {rec.note || rec.overtimeReason || rec.departureReason || reason || <span className="text-slate-400">—</span>}
                             </td>
                           </tr>
                         );
                       })
                     ) : (
                       <tr>
-                        <td colSpan={8} className="p-2 text-center text-slate-400 text-[10px] italic bg-[#F8FAFC]/30">
+                        <td colSpan={10} className="p-2 text-center text-slate-400 text-[10px] italic bg-[#F8FAFC]/30">
                           لم تسجل أي حركات حضور وغياب لهذا الموظف في هذا الشهر.
                         </td>
                       </tr>
                     )}
                   </tbody>
                   {employeeMonthAttendance.length > 0 && (
-                    <tfoot className="bg-[#FEF2F2]/60 font-bold border-t border-rose-200 text-[10px]">
+                    <tfoot className="bg-slate-100 font-bold border-t border-slate-300 text-[10px]">
                       <tr>
-                        <td colSpan={6} className="p-1.5 text-slate-800">
-                          مجموع استقطاعات الغياب والتأخير والمغادرات:
+                        <td colSpan={7} className="p-1.5 text-slate-800">
+                          المجاميع (إضافي الدوام والخصومات):
                         </td>
-                        <td className="p-1.5 font-mono font-bold text-rose-800 text-left text-xs" colSpan={2}>
+                        <td className="p-1.5 font-mono font-bold text-emerald-800 text-left">
+                          +{formatSYP(currentSummary.totalOvertimePay || 0)}
+                        </td>
+                        <td className="p-1.5 font-mono font-bold text-rose-800 text-left">
                           -{formatSYP(currentSummary.totalDeductions)}
                         </td>
+                        <td className="p-1.5"></td>
                       </tr>
                     </tfoot>
                   )}
