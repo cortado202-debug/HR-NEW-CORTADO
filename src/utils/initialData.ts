@@ -28,6 +28,7 @@ export const INITIAL_APP_DATA: AppData = {
   settings: {
     companyName: 'شركة كورتادو كافيه',
     logoUrl: DEFAULT_CORTADO_LOGO,
+    loginLogoUrl: DEFAULT_CORTADO_LOGO,
     currencySymbol: 'ل.س',
     defaultWorkDays: 26,
     defaultWorkHours: 8,

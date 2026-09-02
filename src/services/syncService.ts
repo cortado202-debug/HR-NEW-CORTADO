@@ -97,6 +97,7 @@ class SyncService {
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
       const backupLogo = localStorage.getItem('cortado_company_logo');
+      const backupLoginLogo = localStorage.getItem('cortado_login_logo');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object') {
@@ -106,6 +107,9 @@ class SyncService {
           };
           if (!settings.logoUrl && backupLogo) {
             settings.logoUrl = backupLogo;
+          }
+          if (!settings.loginLogoUrl && backupLoginLogo) {
+            settings.loginLogoUrl = backupLoginLogo;
           }
           if (!settings.shifts || settings.shifts.length === 0) {
             settings.shifts = INITIAL_APP_DATA.settings.shifts;
@@ -187,6 +191,9 @@ class SyncService {
               // If remote logo is empty, preserve local custom logo if exists
               if (!settings.logoUrl && this.data.settings.logoUrl) {
                 settings.logoUrl = this.data.settings.logoUrl;
+              }
+              if (!settings.loginLogoUrl && this.data.settings.loginLogoUrl) {
+                settings.loginLogoUrl = this.data.settings.loginLogoUrl;
               }
               if (!settings.shifts || settings.shifts.length === 0) {
                 settings.shifts = INITIAL_APP_DATA.settings.shifts;
@@ -403,6 +410,13 @@ class SyncService {
         localStorage.setItem('cortado_company_logo', this.data.settings.logoUrl);
       } catch (e) {
         console.warn('Could not cache logo in localStorage:', e);
+      }
+    }
+    if (this.data.settings.loginLogoUrl) {
+      try {
+        localStorage.setItem('cortado_login_logo', this.data.settings.loginLogoUrl);
+      } catch (e) {
+        console.warn('Could not cache login logo in localStorage:', e);
       }
     }
     this.saveLocal();
