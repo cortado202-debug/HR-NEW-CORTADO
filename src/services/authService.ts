@@ -206,8 +206,10 @@ class AuthService {
           // Sync missing fields from employee record
           const acc = accounts[existingIdx];
           if (!acc.employeeId) acc.employeeId = emp.id;
-          if (!acc.password && emp.password) acc.password = emp.password;
-          if (!acc.pin && emp.pin) acc.pin = emp.pin;
+          if (emp.password) acc.password = emp.password;
+          if (emp.pin) acc.pin = emp.pin;
+          if (emp.username) acc.username = emp.username;
+          if (emp.name) acc.displayName = emp.name;
         } else {
           accounts.push({
             id: `emp-auto-${emp.id}`,
@@ -215,8 +217,8 @@ class AuthService {
             displayName: emp.name,
             role: 'employee',
             employeeId: emp.id,
-            password: emp.password || '123',
-            pin: emp.pin || '1234',
+            password: emp.password,
+            pin: emp.pin,
             active: true,
             createdAt: Date.now(),
           });
@@ -281,8 +283,8 @@ class AuthService {
             displayName: matchedEmp.name,
             role: 'employee',
             employeeId: matchedEmp.id,
-            password: matchedEmp.password || '123',
-            pin: matchedEmp.pin || '1234',
+            password: matchedEmp.password,
+            pin: matchedEmp.pin,
             active: matchedEmp.active !== false,
           };
         }
@@ -290,15 +292,21 @@ class AuthService {
     } 
     // 2. If role is SUPERVISOR
     else if (expectedRole === 'supervisor') {
-      const supervisorKeywords = ['supervisor', 'مشرف', 'المشرف', 'المشرف الميداني'];
-      const isKeyword = supervisorKeywords.some((k) => isMatchingIdentity(k, rawUser));
-
+      // First try exact username/display match
       found = accounts.find((u) => {
         if (u.role !== 'supervisor' || u.active === false) return false;
-        return isKeyword || isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser);
+        return isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser);
       });
 
-      if (!found && isKeyword) {
+      if (!found) {
+        const supervisorKeywords = ['supervisor', 'مشرف', 'المشرف', 'المشرف الميداني'];
+        const isKeyword = supervisorKeywords.some((k) => isMatchingIdentity(k, rawUser));
+        if (isKeyword) {
+          found = accounts.find((u) => u.role === 'supervisor' && u.active !== false);
+        }
+      }
+
+      if (!found) {
         found = {
           id: 'supervisor-primary',
           username: 'supervisor',
@@ -313,16 +321,22 @@ class AuthService {
     }
     // 3. If role is ADMIN
     else if (expectedRole === 'admin') {
-      const adminKeywords = ['admin', 'مدير', 'المدير', 'المدير العام', 'zead', 'ziad', 'زياد', 'director', 'cortado', 'كورتادو'];
-      const isKeyword = adminKeywords.some((k) => isMatchingIdentity(k, rawUser)) ||
-                        isMatchingIdentity(data.settings.directorName, rawUser);
-
+      // First try exact username/display match
       found = accounts.find((u) => {
         if (u.role !== 'admin' || u.active === false) return false;
-        return isKeyword || isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser);
+        return isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser);
       });
 
-      if (!found && isKeyword) {
+      if (!found) {
+        const adminKeywords = ['admin', 'مدير', 'المدير', 'المدير العام', 'zead', 'ziad', 'زياد', 'director', 'cortado', 'كورتادو'];
+        const isKeyword = adminKeywords.some((k) => isMatchingIdentity(k, rawUser)) ||
+                          isMatchingIdentity(data.settings.directorName, rawUser);
+        if (isKeyword) {
+          found = accounts.find((u) => u.role === 'admin' && u.active !== false);
+        }
+      }
+
+      if (!found) {
         found = {
           id: 'admin-primary',
           username: data.settings.directorName || 'admin',
@@ -344,40 +358,40 @@ class AuthService {
     }
 
     if (found) {
-      // If role is employee, link with actual employee record if employeeId is missing
-      if (found.role === 'employee' && !found.employeeId) {
-        const linked = data.employees.find((e) => 
-          isMatchingIdentity(e.username, found?.username) ||
-          isMatchingIdentity(e.name, found?.displayName)
-        );
-        if (linked) {
-          found.employeeId = linked.id;
-          if (!found.password && linked.password) found.password = linked.password;
-          if (!found.pin && linked.pin) found.pin = linked.pin;
+      // Keep credentials in sync with employee record if linked
+      if (found.role === 'employee' && found.employeeId) {
+        const emp = data.employees.find((e) => e.id === found?.employeeId);
+        if (emp) {
+          if (emp.password) found.password = emp.password;
+          if (emp.pin) found.pin = emp.pin;
+          if (emp.username) found.username = emp.username;
         }
       }
 
-      // Check passwords:
-      // - Account password
-      // - Account pin
-      // - Linked employee password/pin
-      // - Default '123'
-      // - Default '1234'
-      const validPasswords: string[] = [
-        found.password,
-        found.pin,
-        '123',
-        '1234',
-      ].filter(Boolean) as string[];
+      // Collect ONLY the user's actual configured passwords and PINs
+      const validPasswords: string[] = [];
+      if (found.password && found.password.trim()) {
+        validPasswords.push(found.password.trim());
+      }
+      if (found.pin && found.pin.trim()) {
+        validPasswords.push(found.pin.trim());
+      }
 
       if (found.employeeId) {
         const emp = data.employees.find((e) => e.id === found?.employeeId);
         if (emp) {
-          if (emp.password) validPasswords.push(emp.password);
-          if (emp.pin) validPasswords.push(emp.pin);
-          if (emp.phone && emp.phone.length >= 4) validPasswords.push(emp.phone.slice(-4));
-          if (emp.phone) validPasswords.push(emp.phone);
+          if (emp.password && emp.password.trim() && !validPasswords.includes(emp.password.trim())) {
+            validPasswords.push(emp.password.trim());
+          }
+          if (emp.pin && emp.pin.trim() && !validPasswords.includes(emp.pin.trim())) {
+            validPasswords.push(emp.pin.trim());
+          }
         }
+      }
+
+      // If absolutely no password or PIN was configured at all, allow initial default '123'
+      if (validPasswords.length === 0) {
+        validPasswords.push('123');
       }
 
       const asciiCleanPass = toAsciiDigits(cleanPass);
@@ -390,7 +404,7 @@ class AuthService {
       });
 
       if (!isPasswordMatch) {
-        return { success: false, message: 'كلمة المرور غير صحيحة، يرجى التأكد والمحاولة مجدداً (الافتراضية: 123)' };
+        return { success: false, message: 'كلمة المرور غير صحيحة، يرجى التحقق وإعادة المحاولة' };
       }
 
       this.saveSession(found);
@@ -408,12 +422,12 @@ class AuthService {
     const cleanPin = pin.trim();
     const asciiPin = toAsciiDigits(cleanPin);
 
-    // 1. Search in defined user accounts
+    // 1. Search in defined user accounts by configured PIN or password
     const found = accounts.find((u) => {
       if (!u.active) return false;
       const uPin = u.pin ? toAsciiDigits(u.pin.trim()) : '';
       const uPass = u.password ? toAsciiDigits(u.password.trim()) : '';
-      return uPin === asciiPin || uPass === asciiPin;
+      return (uPin && uPin === asciiPin) || (uPass && uPass === asciiPin);
     });
 
     if (found) {
@@ -421,17 +435,14 @@ class AuthService {
       return { success: true, user: found };
     }
 
-    // 2. Search in employees' custom PINs or last 4 digits of phone
+    // 2. Search in employees' configured PINs or passwords
     const data = syncService.getData();
     const matchedEmp = data.employees.find((e) => {
       if (e.active === false) return false;
       const ePin = e.pin ? toAsciiDigits(e.pin.trim()) : '';
       const ePass = e.password ? toAsciiDigits(e.password.trim()) : '';
-      const phoneDigits = e.phone ? toAsciiDigits(e.phone) : '';
       if (ePin && ePin === asciiPin) return true;
       if (ePass && ePass === asciiPin) return true;
-      if (phoneDigits && phoneDigits.slice(-4) === asciiPin) return true;
-      if (asciiPin === '1234' || asciiPin === '123') return true;
       return false;
     });
 
@@ -442,8 +453,8 @@ class AuthService {
         displayName: matchedEmp.name,
         role: 'employee',
         employeeId: matchedEmp.id,
-        password: matchedEmp.password || '123',
-        pin: matchedEmp.pin || '1234',
+        password: matchedEmp.password,
+        pin: matchedEmp.pin,
         active: matchedEmp.active !== false,
       };
       this.saveSession(empUser);

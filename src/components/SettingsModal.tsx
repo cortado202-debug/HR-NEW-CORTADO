@@ -1314,7 +1314,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                 {showEmpFormPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4 text-emerald-600" />}
                               </button>
                             </div>
-                            <span className="text-[10px] text-slate-400">الافتراضي: 123</span>
+                            <span className="text-[10px] text-slate-400">كلمة المرور الخاصة بدخول الموظف</span>
                           </div>
 
                           <div className="flex flex-col gap-1 sm:col-span-1">
@@ -1322,12 +1322,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <input
                               type="text"
                               maxLength={6}
-                              placeholder="1234"
+                              placeholder="رمز PIN للدخول"
                               value={empPin}
                               onChange={(e) => setEmpPin(e.target.value)}
                               className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-emerald-600"
                             />
-                            <span className="text-[10px] text-slate-400">الافتراضي: 1234</span>
+                            <span className="text-[10px] text-slate-400">رمز PIN السريع (اختياري)</span>
                           </div>
 
                         </div>
@@ -2246,6 +2246,123 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
       </div>
+
+      {/* Quick Employee Credentials Reveal Modal (Admin Only) */}
+      {viewingCredentialsEmp && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 sm:p-6 flex flex-col gap-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">بيانات دخول الموظف</h3>
+                  <p className="text-xs text-slate-500">{viewingCredentialsEmp.name} ({viewingCredentialsEmp.jobTitle || 'موظف'})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingCredentialsEmp(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {/* Username */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] font-bold text-slate-500">اسم المستخدم للدخول</div>
+                  <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5">
+                    {viewingCredentialsEmp.username || viewingCredentialsEmp.phone || viewingCredentialsEmp.name}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(viewingCredentialsEmp.username || viewingCredentialsEmp.phone || viewingCredentialsEmp.name, 'username')}
+                  className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{copiedField === 'username' ? 'تم النسخ!' : 'نسخ'}</span>
+                </button>
+              </div>
+
+              {/* Password */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] font-bold text-slate-500">كلمة المرور (الباسورد)</div>
+                  <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5 tracking-wider">
+                    {showCredPassword ? (viewingCredentialsEmp.password || '123') : '••••••••'}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowCredPassword(!showCredPassword)}
+                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                    title={showCredPassword ? 'إخفاء' : 'إظهار'}
+                  >
+                    {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(viewingCredentialsEmp.password || '123', 'pwd')}
+                    className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copiedField === 'pwd' ? 'تم النسخ!' : 'نسخ'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* PIN */}
+              {viewingCredentialsEmp.pin && (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-500">رمز PIN السريع</div>
+                    <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5 tracking-widest">
+                      {viewingCredentialsEmp.pin}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(viewingCredentialsEmp.pin || '', 'pin')}
+                    className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copiedField === 'pin' ? 'تم النسخ!' : 'نسخ'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  const empToEdit = viewingCredentialsEmp;
+                  setViewingCredentialsEmp(null);
+                  handleStartEditEmployee(empToEdit);
+                }}
+                className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>تغيير كلمة المرور أو البيانات</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewingCredentialsEmp(null)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global Toast Notification */}
       {toastMessage && (

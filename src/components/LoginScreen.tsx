@@ -251,40 +251,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     autoComplete="on"
                     className="px-4 pb-4 sm:px-5 sm:pb-5 pt-2 border-t border-emerald-100/80 bg-white flex flex-col gap-3.5"
                   >
-                    {/* Quick Employee Selector Dropdown if employees exist */}
-                    {employees && employees.length > 0 && (
-                      <div className="flex flex-col gap-1 p-2.5 bg-emerald-50/70 border border-emerald-200/90 rounded-xl">
-                        <label htmlFor="select-quick-employee" className="text-xs font-bold text-emerald-900 flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5 text-emerald-700" />
-                            <span>اختيار سريع: حدد اسمك مباشرة من القائمة</span>
-                          </span>
-                          <span className="text-[10px] text-emerald-700 font-bold px-1.5 py-0.5 bg-emerald-100 rounded-md">تعبئة فورية</span>
-                        </label>
-                        <select
-                          id="select-quick-employee"
-                          value={employees.some(e => e.name === empUsername || e.username === empUsername || (e.phone && e.phone === empUsername)) ? empUsername : ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val) {
-                              setEmpUsername(val);
-                              if (!empPassword) {
-                                setEmpPassword('123');
-                              }
-                            }
-                          }}
-                          className="w-full bg-white border border-emerald-300 text-slate-900 text-xs sm:text-sm font-bold rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-600 cursor-pointer"
-                        >
-                          <option value="">-- أو انقر هنا لاختيار اسمك مباشرة --</option>
-                          {employees.filter(e => e.active !== false).map((emp) => (
-                            <option key={emp.id} value={emp.username || emp.name}>
-                              {emp.name} {emp.jobTitle ? `(${emp.jobTitle})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
                     {/* Employee Username Input */}
                     <div className="flex flex-col gap-1">
                       <label htmlFor="username-employee" className="text-xs font-bold text-slate-700 flex items-center justify-between">
@@ -337,9 +303,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                           {showEmpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                        كلمة المرور الافتراضية للموظف: <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">123</span> (أو رمز PIN: <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">1234</span>)
-                      </p>
                     </div>
 
                     {/* Remember and Submit */}
