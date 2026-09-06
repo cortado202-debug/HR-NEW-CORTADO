@@ -28,6 +28,7 @@ class SyncService {
   private broadcastChannel: BroadcastChannel | null = null;
   private connectionStatus: 'connected' | 'reconnecting' | 'offline' = 'reconnecting';
   private unsubscribeFirestore: (() => void) | null = null;
+  private unsubscribeBranding: (() => void) | null = null;
   private isWritingToFirestore: boolean = false;
 
   constructor() {
@@ -98,6 +99,9 @@ class SyncService {
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
       const backupLogo = localStorage.getItem('cortado_company_logo');
+      const backupCompanyName = localStorage.getItem('cortado_company_name');
+      const backupDirectorName = localStorage.getItem('cortado_director_name');
+
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object') {
@@ -105,11 +109,16 @@ class SyncService {
             ...INITIAL_APP_DATA.settings,
             ...(parsed.settings || {}),
           };
-          if ((!settings.logoUrl || settings.logoUrl === '') && backupLogo) {
-            settings.logoUrl = backupLogo;
+          if (backupCompanyName && backupCompanyName.trim()) {
+            settings.companyName = backupCompanyName;
           }
           if (backupLogo && backupLogo !== DEFAULT_CORTADO_LOGO) {
             settings.logoUrl = backupLogo;
+          } else if ((!settings.logoUrl || settings.logoUrl === '') && backupLogo) {
+            settings.logoUrl = backupLogo;
+          }
+          if (backupDirectorName && backupDirectorName.trim()) {
+            settings.directorName = backupDirectorName;
           }
           if (!settings.shifts || settings.shifts.length === 0) {
             settings.shifts = INITIAL_APP_DATA.settings.shifts;
@@ -126,6 +135,21 @@ class SyncService {
             attendance: parsed.attendance && typeof parsed.attendance === 'object' ? parsed.attendance : {},
           };
         }
+      } else {
+        const settings: CompanySettings = { ...INITIAL_APP_DATA.settings };
+        if (backupCompanyName && backupCompanyName.trim()) {
+          settings.companyName = backupCompanyName;
+        }
+        if (backupLogo && backupLogo !== DEFAULT_CORTADO_LOGO) {
+          settings.logoUrl = backupLogo;
+        }
+        if (backupDirectorName && backupDirectorName.trim()) {
+          settings.directorName = backupDirectorName;
+        }
+        return {
+          ...INITIAL_APP_DATA,
+          settings,
+        };
       }
     } catch {
       // ignore
@@ -165,7 +189,59 @@ class SyncService {
         console.warn('Initial doc check/seed info:', e);
       }
 
-      // Start Real-Time onSnapshot listener
+      // 1. Dedicated Real-Time Listener for Company Branding & Logo
+      // This ensures that any change to the company name or logo anywhere in the world
+      // is pushed to all screens and devices instantly (< 300ms)
+      const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
+      this.unsubscribeBranding = onSnapshot(
+        brandingDocRef,
+        { includeMetadataChanges: false },
+        (bSnap) => {
+          if (bSnap.exists()) {
+            const bData = bSnap.data() as any;
+            if (bData) {
+              let changed = false;
+              if (bData.companyName && bData.companyName.trim() && bData.companyName !== this.data.settings.companyName) {
+                this.data.settings.companyName = bData.companyName.trim();
+                try {
+                  localStorage.setItem('cortado_company_name', this.data.settings.companyName);
+                } catch {
+                  // ignore
+                }
+                changed = true;
+              }
+              if (bData.logoUrl && bData.logoUrl !== this.data.settings.logoUrl) {
+                this.data.settings.logoUrl = bData.logoUrl;
+                try {
+                  localStorage.setItem('cortado_company_logo', bData.logoUrl);
+                } catch {
+                  // ignore
+                }
+                changed = true;
+              }
+              if (bData.directorName && bData.directorName.trim() && bData.directorName !== this.data.settings.directorName) {
+                this.data.settings.directorName = bData.directorName.trim();
+                try {
+                  localStorage.setItem('cortado_director_name', this.data.settings.directorName);
+                } catch {
+                  // ignore
+                }
+                changed = true;
+              }
+              if (changed) {
+                this.saveLocal();
+                this.notify();
+                this.broadcastLocal('SETTINGS_UPDATED', this.data.settings);
+              }
+            }
+          }
+        },
+        (bError) => {
+          console.warn('Branding onSnapshot listener notice:', bError);
+        }
+      );
+
+      // 2. Start Real-Time onSnapshot listener for main application data
       this.unsubscribeFirestore = onSnapshot(
         docRef,
         { includeMetadataChanges: false },
@@ -188,10 +264,21 @@ class SyncService {
                 ...INITIAL_APP_DATA.settings,
                 ...(remoteData.settings || {}),
               };
-              // If remote logo is empty, preserve local custom logo if exists
-              if (!settings.logoUrl && this.data.settings.logoUrl) {
+
+              // Prevent overwriting custom company name with default placeholder
+              const localCustomName = localStorage.getItem('cortado_company_name') || (this.data.settings.companyName !== 'شركة كورتادو كافيه' ? this.data.settings.companyName : null);
+              if (localCustomName && (!remoteData.settings?.companyName || remoteData.settings.companyName === 'شركة كورتادو كافيه')) {
+                settings.companyName = localCustomName;
+              }
+
+              // Prevent overwriting custom logo with default logo
+              const localCustomLogo = localStorage.getItem('cortado_company_logo') || (this.data.settings.logoUrl !== DEFAULT_CORTADO_LOGO ? this.data.settings.logoUrl : null);
+              if (localCustomLogo && localCustomLogo !== DEFAULT_CORTADO_LOGO) {
+                settings.logoUrl = localCustomLogo;
+              } else if (!settings.logoUrl && this.data.settings.logoUrl) {
                 settings.logoUrl = this.data.settings.logoUrl;
               }
+
               if (!settings.shifts || settings.shifts.length === 0) {
                 settings.shifts = INITIAL_APP_DATA.settings.shifts;
               }
@@ -233,6 +320,21 @@ class SyncService {
   private async pushToFirestore(merge: boolean = false): Promise<void> {
     try {
       this.isWritingToFirestore = true;
+
+      // Always push branding immediately to the fast, dedicated document
+      try {
+        const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
+        setDoc(brandingDocRef, {
+          companyName: this.data.settings.companyName || '',
+          directorName: this.data.settings.directorName || '',
+          logoUrl: this.data.settings.logoUrl || '',
+          lastUpdated: Date.now(),
+          updatedByClientId: CLIENT_ID,
+        }, { merge: true }).catch((e) => console.warn('Branding push background note:', e));
+      } catch (be) {
+        console.warn('Branding push sync note:', be);
+      }
+
       const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
       const payload = sanitizeForFirestore({
         employees: this.data.employees,
@@ -243,10 +345,10 @@ class SyncService {
         updatedByClientId: CLIENT_ID,
       });
 
-      // Timeout wrapper so slow network or offline queue never stalls operations
+      // 12-second timeout wrapper so real networks have ample time to complete write
       const setDocPromise = setDoc(docRef, payload, { merge });
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Firestore write timeout')), 3000)
+        setTimeout(() => reject(new Error('Firestore write timeout')), 12000)
       );
 
       await Promise.race([setDocPromise, timeoutPromise]);
@@ -402,6 +504,7 @@ class SyncService {
   public async updateSettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
     this.data.settings = { ...this.data.settings, ...settings };
     this.data.lastUpdated = Date.now();
+    
     if (this.data.settings.logoUrl) {
       try {
         localStorage.setItem('cortado_company_logo', this.data.settings.logoUrl);
@@ -409,12 +512,32 @@ class SyncService {
         console.warn('Could not cache logo in localStorage:', e);
       }
     }
+    if (this.data.settings.companyName) {
+      try {
+        localStorage.setItem('cortado_company_name', this.data.settings.companyName);
+      } catch (e) {
+        console.warn('Could not cache companyName in localStorage:', e);
+      }
+    }
+    if (this.data.settings.directorName) {
+      try {
+        localStorage.setItem('cortado_director_name', this.data.settings.directorName);
+      } catch (e) {
+        console.warn('Could not cache directorName in localStorage:', e);
+      }
+    }
+
+    // Update document title dynamically
+    if (typeof document !== 'undefined' && this.data.settings.companyName) {
+      document.title = `${this.data.settings.companyName} | سلف وحضور الموظفين`;
+    }
+
     this.saveLocal();
     this.notify();
     this.broadcastLocal('SETTINGS_UPDATED', this.data.settings);
 
-    // Push to Firebase Firestore in background
-    this.pushToFirestore().catch((err) => console.warn(err));
+    // Push to Firebase Firestore in background with merge
+    this.pushToFirestore(true).catch((err) => console.warn('pushToFirestore updateSettings err:', err));
     return this.data.settings;
   }
 

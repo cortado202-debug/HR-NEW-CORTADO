@@ -4,7 +4,6 @@ import { Employee, CompanySettings, UserRole } from '../types';
 import { authService } from '../services/authService';
 import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 import { 
-  Building2, 
   ShieldCheck, 
   Lock, 
   User, 
@@ -16,9 +15,7 @@ import {
   LogIn, 
   CheckCircle2, 
   QrCode, 
-  ChevronDown,
-  Sparkles,
-  KeyRound
+  ChevronDown
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -106,7 +103,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
   };
 
-  const activeLogo = settings.logoUrl || DEFAULT_CORTADO_LOGO;
+  const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_logo') : null;
+  const cachedName = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_name') : null;
+
+  const activeLogo = (settings.logoUrl && settings.logoUrl.trim() !== '') 
+    ? settings.logoUrl 
+    : (cachedLogo && cachedLogo.trim() !== '') 
+      ? cachedLogo 
+      : DEFAULT_CORTADO_LOGO;
+
+  const activeCompanyName = (settings.companyName && settings.companyName.trim() !== '')
+    ? settings.companyName
+    : (cachedName && cachedName.trim() !== '')
+      ? cachedName
+      : 'شركة كورتادو كافيه';
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] flex flex-col justify-center items-center p-3 sm:p-6 font-sans antialiased text-slate-900 selection:bg-slate-900 selection:text-white" dir="rtl">
@@ -124,14 +134,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl mb-3 shadow-md border-2 border-emerald-500/40 bg-white p-2 flex items-center justify-center overflow-hidden transition-all duration-300 hover:scale-105">
             <img 
               src={activeLogo} 
-              alt={settings.companyName || 'شعار الشركة'} 
+              alt={activeCompanyName} 
               className="w-full h-full object-contain rounded-2xl drop-shadow-xs"
               referrerPolicy="no-referrer"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (target.src !== DEFAULT_CORTADO_LOGO) {
+                  target.src = DEFAULT_CORTADO_LOGO;
+                }
+              }}
             />
           </div>
           
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            {settings.companyName || 'شركة كورتادو كافيه'}
+            {activeCompanyName}
           </h1>
           <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 font-medium">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -235,18 +251,46 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     autoComplete="on"
                     className="px-4 pb-4 sm:px-5 sm:pb-5 pt-2 border-t border-emerald-100/80 bg-white flex flex-col gap-3.5"
                   >
-                    {/* Helpful Tip */}
-                    <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-200/50 text-[11px] text-emerald-900 font-medium flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                      <span>يمكنك الدخول باسم الموظف أو رمزه أو رقم هاتفه مع كلمة المرور (الافتراضية: 123)</span>
-                    </div>
+                    {/* Quick Employee Selector Dropdown if employees exist */}
+                    {employees && employees.length > 0 && (
+                      <div className="flex flex-col gap-1 p-2.5 bg-emerald-50/70 border border-emerald-200/90 rounded-xl">
+                        <label htmlFor="select-quick-employee" className="text-xs font-bold text-emerald-900 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>اختيار سريع: حدد اسمك مباشرة من القائمة</span>
+                          </span>
+                          <span className="text-[10px] text-emerald-700 font-bold px-1.5 py-0.5 bg-emerald-100 rounded-md">تعبئة فورية</span>
+                        </label>
+                        <select
+                          id="select-quick-employee"
+                          value={employees.some(e => e.name === empUsername || e.username === empUsername || (e.phone && e.phone === empUsername)) ? empUsername : ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val) {
+                              setEmpUsername(val);
+                              if (!empPassword) {
+                                setEmpPassword('123');
+                              }
+                            }
+                          }}
+                          className="w-full bg-white border border-emerald-300 text-slate-900 text-xs sm:text-sm font-bold rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-600 cursor-pointer"
+                        >
+                          <option value="">-- أو انقر هنا لاختيار اسمك مباشرة --</option>
+                          {employees.filter(e => e.active !== false).map((emp) => (
+                            <option key={emp.id} value={emp.username || emp.name}>
+                              {emp.name} {emp.jobTitle ? `(${emp.jobTitle})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
                     {/* Employee Username Input */}
                     <div className="flex flex-col gap-1">
                       <label htmlFor="username-employee" className="text-xs font-bold text-slate-700 flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
                           <User className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>اسم المستخدم أو الاسم أو رقم الجوال</span>
+                          <span>اسم الموظف أو رمزه أو رقم هاتفه</span>
                         </span>
                       </label>
                       <input
@@ -254,7 +298,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         name="username"
                         type="text"
                         autoComplete="username"
-                        placeholder="مثال: أحمد أو AMD أو 0987654321"
+                        placeholder="أدخل اسمك أو اسم المستخدم أو رقم هاتفك"
                         value={empUsername}
                         onChange={(e) => setEmpUsername(e.target.value)}
                         required
@@ -293,6 +337,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                           {showEmpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        كلمة المرور الافتراضية للموظف: <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">123</span> (أو رمز PIN: <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">1234</span>)
+                      </p>
                     </div>
 
                     {/* Remember and Submit */}
@@ -389,12 +436,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     autoComplete="on"
                     className="px-4 pb-4 sm:px-5 sm:pb-5 pt-2 border-t border-indigo-100/80 bg-white flex flex-col gap-3.5"
                   >
-                    {/* Helpful Tip */}
-                    <div className="p-2.5 bg-indigo-50/60 rounded-xl border border-indigo-200/50 text-[11px] text-indigo-900 font-medium flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
-                      <span>اسم المستخدم الافتراضي: supervisor | كلمة المرور الافتراضية: 123</span>
-                    </div>
-
                     {/* Supervisor Username Input */}
                     <div className="flex flex-col gap-1">
                       <label htmlFor="username-supervisor" className="text-xs font-bold text-slate-700 flex items-center justify-between">
@@ -408,7 +449,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         name="username"
                         type="text"
                         autoComplete="username"
-                        placeholder="مثال: supervisor"
+                        placeholder="أدخل اسم مستخدم المشرف"
                         value={supUsername}
                         onChange={(e) => setSupUsername(e.target.value)}
                         required
@@ -542,18 +583,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     autoComplete="on"
                     className="px-4 pb-4 sm:px-5 sm:pb-5 pt-2 border-t border-slate-200 bg-white flex flex-col gap-3.5"
                   >
-                    {/* Helpful Tip */}
-                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-700 font-medium flex items-center gap-2">
-                      <KeyRound className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                      <span>اسم المستخدم: {settings.directorName || 'admin'} | كلمة المرور الافتراضية: 123</span>
-                    </div>
-
                     {/* Admin Username Input */}
                     <div className="flex flex-col gap-1">
                       <label htmlFor="username-admin" className="text-xs font-bold text-slate-700 flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
                           <User className="w-3.5 h-3.5 text-slate-700" />
-                          <span>اسم مستخدم المدير العام أو اسمه</span>
+                          <span>اسم مستخدم المدير العام</span>
                         </span>
                       </label>
                       <input
@@ -561,7 +596,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         name="username"
                         type="text"
                         autoComplete="username"
-                        placeholder="اسم المستخدم أو admin"
+                        placeholder="أدخل اسم مستخدم المدير العام"
                         value={adminUsername}
                         onChange={(e) => setAdminUsername(e.target.value)}
                         required

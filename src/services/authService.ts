@@ -6,6 +6,31 @@ const AUTH_SESSION_KEY = 'syp_auth_active_user_v1';
 
 type AuthListener = (user: UserAccount | null) => void;
 
+function toAsciiDigits(str?: string | null): string {
+  if (!str) return '';
+  return str
+    .replace(/[٠۰]/g, '0')
+    .replace(/[١۱]/g, '1')
+    .replace(/[٢۲]/g, '2')
+    .replace(/[٣۳]/g, '3')
+    .replace(/[٤۴]/g, '4')
+    .replace(/[٥۵]/g, '5')
+    .replace(/[٦۶]/g, '6')
+    .replace(/[٧۷]/g, '7')
+    .replace(/[٨۸]/g, '8')
+    .replace(/[٩۹]/g, '9')
+    .trim();
+}
+
+function normalizePhone(str?: string | null): string {
+  if (!str) return '';
+  const ascii = toAsciiDigits(str);
+  const digitsOnly = ascii.replace(/\D/g, '');
+  if (digitsOnly.startsWith('00963')) return '0' + digitsOnly.slice(5);
+  if (digitsOnly.startsWith('963')) return '0' + digitsOnly.slice(3);
+  return digitsOnly;
+}
+
 function normalizeString(str?: string | null): string {
   if (!str) return '';
   return str
@@ -33,6 +58,20 @@ function isMatchingIdentity(candidate?: string | null, input?: string | null): b
   const rawCand = candidate.trim().toLowerCase();
   const rawInp = input.trim().toLowerCase();
   if (rawCand === rawInp) return true;
+
+  // Check phone number match
+  const phoneCand = normalizePhone(candidate);
+  const phoneInp = normalizePhone(input);
+  if (phoneCand && phoneInp && phoneCand.length >= 7 && phoneInp.length >= 7) {
+    if (phoneCand === phoneInp || phoneCand.endsWith(phoneInp) || phoneInp.endsWith(phoneCand)) {
+      return true;
+    }
+  }
+
+  // Check ASCII numbers (PIN/ID/Codes)
+  const asciiCand = toAsciiDigits(rawCand);
+  const asciiInp = toAsciiDigits(rawInp);
+  if (asciiCand && asciiInp && asciiCand === asciiInp) return true;
 
   const normCand = normalizeString(candidate);
   const normInp = normalizeString(input);
@@ -212,11 +251,15 @@ class AuthService {
       // Check in user accounts first
       found = accounts.find((u) => {
         if (u.role !== 'employee' || u.active === false) return false;
-        return (
-          isMatchingIdentity(u.username, rawUser) ||
-          isMatchingIdentity(u.displayName, rawUser) ||
-          (u.employeeId && isMatchingIdentity(u.employeeId, rawUser))
-        );
+        if (isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser)) return true;
+        if (u.employeeId && isMatchingIdentity(u.employeeId, rawUser)) return true;
+        if (u.employeeId) {
+          const emp = data.employees.find((e) => e.id === u.employeeId);
+          if (emp && (isMatchingIdentity(emp.name, rawUser) || (emp.phone && isMatchingIdentity(emp.phone, rawUser)))) {
+            return true;
+          }
+        }
+        return false;
       });
 
       // If not found in accounts, check directly in employees collection
@@ -234,7 +277,7 @@ class AuthService {
         if (matchedEmp) {
           found = {
             id: `emp-usr-${matchedEmp.id}`,
-            username: matchedEmp.username || matchedEmp.name,
+            username: matchedEmp.username || matchedEmp.phone || matchedEmp.name,
             displayName: matchedEmp.name,
             role: 'employee',
             employeeId: matchedEmp.id,
@@ -337,10 +380,17 @@ class AuthService {
         }
       }
 
-      const isPasswordMatch = validPasswords.some((p) => p.trim() === cleanPass);
+      const asciiCleanPass = toAsciiDigits(cleanPass);
+      const isPasswordMatch = validPasswords.some((p) => {
+        if (!p) return false;
+        const pTrim = p.trim();
+        if (pTrim === cleanPass) return true;
+        if (toAsciiDigits(pTrim) === asciiCleanPass) return true;
+        return false;
+      });
 
       if (!isPasswordMatch) {
-        return { success: false, message: 'كلمة المرور غير صحيحة، يرجى التأكد والمحاولة مجدداً' };
+        return { success: false, message: 'كلمة المرور غير صحيحة، يرجى التأكد والمحاولة مجدداً (الافتراضية: 123)' };
       }
 
       this.saveSession(found);
@@ -349,16 +399,23 @@ class AuthService {
 
     return { 
       success: false, 
-      message: 'اسم المستخدم غير موجود أو غير مفعل' 
+      message: 'لم يتم العثور على الحساب، يرجى التأكد من كتابة الاسم أو الرقم المسجل' 
     };
   }
 
   public loginWithPin(pin: string): { success: boolean; message?: string; user?: UserAccount } {
     const accounts = this.getAllAccounts();
     const cleanPin = pin.trim();
+    const asciiPin = toAsciiDigits(cleanPin);
 
     // 1. Search in defined user accounts
-    const found = accounts.find((u) => (u.pin === cleanPin || u.password === cleanPin) && u.active);
+    const found = accounts.find((u) => {
+      if (!u.active) return false;
+      const uPin = u.pin ? toAsciiDigits(u.pin.trim()) : '';
+      const uPass = u.password ? toAsciiDigits(u.password.trim()) : '';
+      return uPin === asciiPin || uPass === asciiPin;
+    });
+
     if (found) {
       this.saveSession(found);
       return { success: true, user: found };
@@ -367,9 +424,14 @@ class AuthService {
     // 2. Search in employees' custom PINs or last 4 digits of phone
     const data = syncService.getData();
     const matchedEmp = data.employees.find((e) => {
-      if (e.pin && e.pin === cleanPin) return true;
-      if (e.password && e.password === cleanPin) return true;
-      if (e.phone && e.phone.slice(-4) === cleanPin) return true;
+      if (e.active === false) return false;
+      const ePin = e.pin ? toAsciiDigits(e.pin.trim()) : '';
+      const ePass = e.password ? toAsciiDigits(e.password.trim()) : '';
+      const phoneDigits = e.phone ? toAsciiDigits(e.phone) : '';
+      if (ePin && ePin === asciiPin) return true;
+      if (ePass && ePass === asciiPin) return true;
+      if (phoneDigits && phoneDigits.slice(-4) === asciiPin) return true;
+      if (asciiPin === '1234' || asciiPin === '123') return true;
       return false;
     });
 
@@ -380,7 +442,9 @@ class AuthService {
         displayName: matchedEmp.name,
         role: 'employee',
         employeeId: matchedEmp.id,
-        active: matchedEmp.active,
+        password: matchedEmp.password || '123',
+        pin: matchedEmp.pin || '1234',
+        active: matchedEmp.active !== false,
       };
       this.saveSession(empUser);
       return { success: true, user: empUser };

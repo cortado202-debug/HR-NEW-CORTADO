@@ -273,9 +273,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (file) {
       processImageUpload(file, async (optimized) => {
         setLogoUrl(optimized);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('cortado_company_logo', optimized);
+          if (companyName) localStorage.setItem('cortado_company_name', companyName.trim());
+        }
         try {
-          await onUpdateSettings({ logoUrl: optimized });
-          triggerToast('✅ تم رفع وتحديث شعار المنشأة مباشرة في شاشة تسجيل الدخول وكافة التقارير!');
+          await onUpdateSettings({ 
+            logoUrl: optimized,
+            companyName: companyName.trim() || undefined,
+            directorName: directorName.trim() || undefined,
+          });
+          triggerToast('✅ تم رفع وتحديث شعار واسم المنشأة فوراً في شاشة تسجيل الدخول وجميع التقارير!');
         } catch (err) {
           console.error(err);
         }
@@ -285,6 +293,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleRemoveLogo = async () => {
     setLogoUrl('');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('cortado_company_logo');
+    }
     try {
       await onUpdateSettings({ logoUrl: '' });
       triggerToast('تمت إزالة الشعار واستعادة الشعار الافتراضي');
@@ -334,6 +345,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         }
       }
       setUsersList(currentUsers);
+
+      if (typeof window !== 'undefined') {
+        if (logoUrl) localStorage.setItem('cortado_company_logo', logoUrl);
+        if (companyName) localStorage.setItem('cortado_company_name', companyName.trim());
+        if (directorName) localStorage.setItem('cortado_director_name', directorName.trim());
+      }
 
       await onUpdateSettings({
         companyName,
