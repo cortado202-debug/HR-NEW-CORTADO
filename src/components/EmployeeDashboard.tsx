@@ -105,9 +105,10 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
         <div className="flex items-center gap-3 min-w-0">
           {settings.logoUrl ? (
             <img
+              key={settings.logoUrl}
               src={settings.logoUrl}
               alt={settings.companyName || 'شعار الشركة'}
-              className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl object-contain border border-slate-200 bg-slate-50 p-1 flex-shrink-0 shadow-2xs"
+              className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl object-contain border border-slate-200 bg-slate-50 p-1 flex-shrink-0 shadow-2xs transition-all duration-300"
             />
           ) : (
             <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center font-black text-lg sm:text-xl flex-shrink-0 shadow-2xs">
@@ -117,7 +118,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-sm sm:text-base font-black text-slate-900 truncate leading-tight">
+              <h1 key={settings.companyName} className="text-sm sm:text-base font-black text-slate-900 truncate leading-tight transition-all duration-300">
                 {settings.companyName || 'منظومة سلف وحضور الموظفين'}
               </h1>
               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex-shrink-0">

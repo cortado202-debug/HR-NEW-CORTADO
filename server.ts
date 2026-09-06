@@ -6,7 +6,8 @@ import { createServer as createViteServer } from 'vite';
 const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
 // File path for persistence
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -20,14 +21,14 @@ if (!fs.existsSync(DATA_DIR)) {
 // Initial Data
 const DEFAULT_DATA = {
   settings: {
-    companyName: 'مجموعة بركات للتجارة والتوزيع',
+    companyName: 'شركة كورتادو كافيه',
     logoUrl: '',
     currencySymbol: 'ل.س',
     defaultWorkDays: 26,
     defaultWorkHours: 8,
     defaultAbsentDeductionMultiplier: 1.0,
     defaultLatePenaltyMethod: 'hourly_rate',
-    directorName: 'أ. مروان بركات',
+    directorName: 'الإدارة العامة',
     workStartTime: '08:00',
     workEndTime: '17:00',
     maxAdvancePerMonth: 2000000,
@@ -450,7 +451,46 @@ app.post('/api/settings', (req: Request, res: Response) => {
   saveStore(memoryStore);
 
   broadcast('SETTINGS_UPDATED', memoryStore.settings, clientId);
+  broadcast('BRANDING_UPDATED', {
+    companyName: memoryStore.settings.companyName,
+    directorName: memoryStore.settings.directorName,
+    logoUrl: memoryStore.settings.logoUrl,
+    lastUpdated: memoryStore.lastUpdated,
+  }, clientId);
   res.json({ success: true, settings: memoryStore.settings });
+});
+
+// GET Dedicated Company Branding (Logo, Name, Director)
+app.get('/api/branding', (req: Request, res: Response) => {
+  res.json({
+    companyName: memoryStore.settings?.companyName || 'شركة كورتادو كافيه',
+    directorName: memoryStore.settings?.directorName || 'الإدارة العامة',
+    logoUrl: memoryStore.settings?.logoUrl || '',
+    lastUpdated: memoryStore.lastUpdated || Date.now(),
+  });
+});
+
+// POST Dedicated Company Branding Update (For instant forced global sync)
+app.post('/api/branding', (req: Request, res: Response) => {
+  const { companyName, directorName, logoUrl, clientId } = req.body;
+  
+  if (companyName !== undefined) memoryStore.settings.companyName = companyName;
+  if (directorName !== undefined) memoryStore.settings.directorName = directorName;
+  if (logoUrl !== undefined) memoryStore.settings.logoUrl = logoUrl;
+  
+  saveStore(memoryStore);
+
+  const brandingPayload = {
+    companyName: memoryStore.settings.companyName,
+    directorName: memoryStore.settings.directorName,
+    logoUrl: memoryStore.settings.logoUrl,
+    lastUpdated: memoryStore.lastUpdated,
+  };
+
+  broadcast('BRANDING_UPDATED', brandingPayload, clientId);
+  broadcast('SETTINGS_UPDATED', memoryStore.settings, clientId);
+
+  res.json({ success: true, branding: brandingPayload, settings: memoryStore.settings });
 });
 
 // POST Reset / Clear Data for New Month (Clears advances & attendance, retains employees & settings)

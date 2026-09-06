@@ -133,9 +133,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         <div className="flex flex-col items-center text-center mb-6">
           <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl mb-3 shadow-md border-2 border-emerald-500/40 bg-white p-2 flex items-center justify-center overflow-hidden transition-all duration-300 hover:scale-105">
             <img 
+              key={activeLogo}
               src={activeLogo} 
               alt={activeCompanyName} 
-              className="w-full h-full object-contain rounded-2xl drop-shadow-xs"
+              className="w-full h-full object-contain rounded-2xl drop-shadow-xs transition-all duration-300"
               referrerPolicy="no-referrer"
               onError={(e) => {
                 const target = e.currentTarget;
@@ -146,7 +147,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             />
           </div>
           
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+          <h1 key={activeCompanyName} className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight transition-all duration-300">
             {activeCompanyName}
           </h1>
           <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 font-medium">

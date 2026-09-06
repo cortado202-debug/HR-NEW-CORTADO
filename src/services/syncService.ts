@@ -7,7 +7,7 @@ import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 const FIRESTORE_COLLECTION = 'company_app_data';
 const FIRESTORE_DOC_ID = 'cortado_clean_app_v3';
 const LOCAL_STORAGE_KEY = 'cortado_clean_app_v3';
-const CLIENT_ID = 'client_' + Math.random().toString(36).substr(2, 9);
+const CLIENT_ID = 'client_' + Math.random().toString(36).substring(2, 11);
 
 function sanitizeForFirestore<T>(data: T): T {
   try {
@@ -29,13 +29,15 @@ class SyncService {
   private connectionStatus: 'connected' | 'reconnecting' | 'offline' = 'reconnecting';
   private unsubscribeFirestore: (() => void) | null = null;
   private unsubscribeBranding: (() => void) | null = null;
+  private eventSource: EventSource | null = null;
+  private pollInterval: any = null;
   private isWritingToFirestore: boolean = false;
 
   constructor() {
-    // 1. Initialize from local storage or initial defaults for instant UI load
+    // 1. Initialize from local storage or initial defaults for instant 0ms UI render
     this.data = this.loadLocal();
 
-    // 2. Setup BroadcastChannel for cross-tab sync
+    // 2. Setup BroadcastChannel for 0ms cross-tab sync in the same browser
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         this.broadcastChannel = new BroadcastChannel('syp_attendance_sync');
@@ -49,8 +51,17 @@ class SyncService {
       }
     }
 
-    // 3. Connect to Firebase Firestore Real-Time Listener
     if (typeof window !== 'undefined') {
+      // 3. Connect to Real-Time Server-Sent Events (SSE) stream for instant multi-device sync
+      this.initServerEventsSync();
+
+      // 4. Immediately fetch latest server state (REST) to guarantee fresh data on initial open
+      this.fetchServerState();
+
+      // 5. Setup periodic background sync polling every 3.5s as an unbreakable fallback
+      this.startBackgroundSyncPoll();
+
+      // 6. Connect to Firebase Firestore in background if available
       this.initFirestoreSync();
     }
   }
@@ -110,15 +121,13 @@ class SyncService {
             ...(parsed.settings || {}),
           };
           if (backupCompanyName && backupCompanyName.trim()) {
-            settings.companyName = backupCompanyName;
+            settings.companyName = backupCompanyName.trim();
           }
-          if (backupLogo && backupLogo !== DEFAULT_CORTADO_LOGO) {
-            settings.logoUrl = backupLogo;
-          } else if ((!settings.logoUrl || settings.logoUrl === '') && backupLogo) {
+          if (backupLogo && backupLogo.trim()) {
             settings.logoUrl = backupLogo;
           }
           if (backupDirectorName && backupDirectorName.trim()) {
-            settings.directorName = backupDirectorName;
+            settings.directorName = backupDirectorName.trim();
           }
           if (!settings.shifts || settings.shifts.length === 0) {
             settings.shifts = INITIAL_APP_DATA.settings.shifts;
@@ -133,28 +142,30 @@ class SyncService {
             employees: Array.isArray(parsed.employees) ? parsed.employees : [],
             advances: Array.isArray(parsed.advances) ? parsed.advances : [],
             attendance: parsed.attendance && typeof parsed.attendance === 'object' ? parsed.attendance : {},
+            lastUpdated: parsed.lastUpdated || 0,
           };
         }
       } else {
         const settings: CompanySettings = { ...INITIAL_APP_DATA.settings };
         if (backupCompanyName && backupCompanyName.trim()) {
-          settings.companyName = backupCompanyName;
+          settings.companyName = backupCompanyName.trim();
         }
-        if (backupLogo && backupLogo !== DEFAULT_CORTADO_LOGO) {
+        if (backupLogo && backupLogo.trim()) {
           settings.logoUrl = backupLogo;
         }
         if (backupDirectorName && backupDirectorName.trim()) {
-          settings.directorName = backupDirectorName;
+          settings.directorName = backupDirectorName.trim();
         }
         return {
           ...INITIAL_APP_DATA,
           settings,
+          lastUpdated: 0,
         };
       }
     } catch {
       // ignore
     }
-    return INITIAL_APP_DATA;
+    return { ...INITIAL_APP_DATA, lastUpdated: 0 };
   }
 
   private saveLocal() {
@@ -165,16 +176,383 @@ class SyncService {
     }
   }
 
+  // ================= 1. SERVER-SENT EVENTS (SSE) REAL-TIME SYNC =================
+
   /**
-   * Initializes real-time bidirectional syncing with Firebase Firestore.
-   * Every branch and device listening to this document will receive live instant updates.
+   * Connects to /api/sync/stream SSE endpoint.
+   * Delivers instantaneous push notifications to all connected clients (<50ms).
    */
+  private initServerEventsSync() {
+    if (typeof window === 'undefined' || !window.EventSource) return;
+
+    if (this.eventSource) {
+      try {
+        this.eventSource.close();
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      this.eventSource = new EventSource('/api/sync/stream');
+
+      this.eventSource.onopen = () => {
+        this.setConnectionStatus('connected');
+      };
+
+      this.eventSource.onmessage = (event) => {
+        try {
+          if (!event.data || event.data.startsWith(':')) return;
+          const msg = JSON.parse(event.data);
+          this.handleIncomingServerEvent(msg);
+        } catch (err) {
+          console.warn('Error parsing SSE event:', err);
+        }
+      };
+
+      this.eventSource.onerror = () => {
+        this.setConnectionStatus('reconnecting');
+        if (this.eventSource) {
+          this.eventSource.close();
+          this.eventSource = null;
+        }
+        // Auto-reconnect after 2.5 seconds
+        setTimeout(() => {
+          this.initServerEventsSync();
+        }, 2500);
+      };
+    } catch (err) {
+      console.warn('SSE stream initialization notice:', err);
+    }
+  }
+
+  /**
+   * Processes live messages broadcasted by the Express backend.
+   */
+  private handleIncomingServerEvent(msg: { type: string; payload: any; timestamp?: number; clientId?: string }) {
+    if (!msg || !msg.type) return;
+
+    // Ignore events that originated from our own client
+    if (msg.clientId && msg.clientId === CLIENT_ID) return;
+
+    const { type, payload } = msg;
+
+    switch (type) {
+      case 'INIT': {
+        if (payload && typeof payload === 'object') {
+          this.applyServerFullState(payload);
+        }
+        break;
+      }
+
+      case 'BRANDING_UPDATED': {
+        if (payload && typeof payload === 'object') {
+          this.applyBrandingUpdate(payload);
+        }
+        break;
+      }
+
+      case 'SETTINGS_UPDATED': {
+        if (payload && typeof payload === 'object') {
+          this.applySettingsUpdate(payload);
+        }
+        break;
+      }
+
+      case 'ADVANCE_ADDED': {
+        if (payload && payload.id) {
+          const exists = this.data.advances.some((a) => a.id === payload.id);
+          if (!exists) {
+            this.data.advances = [payload, ...this.data.advances];
+            this.data.lastUpdated = Date.now();
+            this.notify();
+          }
+        }
+        break;
+      }
+
+      case 'ADVANCE_DELETED': {
+        if (payload && payload.id) {
+          this.data.advances = this.data.advances.filter((a) => a.id !== payload.id);
+          this.data.lastUpdated = Date.now();
+          this.notify();
+        }
+        break;
+      }
+
+      case 'ATTENDANCE_UPDATED': {
+        if (payload && payload.id) {
+          this.data.attendance[payload.id] = payload;
+          this.data.lastUpdated = Date.now();
+          this.notify();
+        }
+        break;
+      }
+
+      case 'ATTENDANCE_BULK_UPDATED': {
+        if (Array.isArray(payload)) {
+          payload.forEach((rec) => {
+            const id = rec.id || `${rec.employeeId}_${rec.date}`;
+            this.data.attendance[id] = { ...rec, id };
+          });
+          this.data.lastUpdated = Date.now();
+          this.notify();
+        }
+        break;
+      }
+
+      case 'EMPLOYEE_ADDED': {
+        if (payload && payload.id) {
+          const exists = this.data.employees.some((e) => e.id === payload.id);
+          if (!exists) {
+            this.data.employees.push(payload);
+            this.data.lastUpdated = Date.now();
+            this.notify();
+          }
+        }
+        break;
+      }
+
+      case 'EMPLOYEE_UPDATED': {
+        if (payload && payload.id) {
+          this.data.employees = this.data.employees.map((e) => (e.id === payload.id ? payload : e));
+          this.data.lastUpdated = Date.now();
+          this.notify();
+        }
+        break;
+      }
+
+      case 'EMPLOYEE_DELETED': {
+        if (payload && payload.id) {
+          this.data.employees = this.data.employees.filter((e) => e.id !== payload.id);
+          this.data.lastUpdated = Date.now();
+          this.notify();
+        }
+        break;
+      }
+
+      case 'MONTH_RESET': {
+        this.data.advances = [];
+        this.data.attendance = {};
+        this.data.lastUpdated = Date.now();
+        this.notify();
+        break;
+      }
+
+      case 'DATA_RESET': {
+        if (payload && typeof payload === 'object') {
+          this.data = { ...payload, lastUpdated: Date.now() };
+          this.notify();
+        }
+        break;
+      }
+    }
+  }
+
+  /**
+   * Applies a branding update directly and forcibly.
+   */
+  private applyBrandingUpdate(branding: { companyName?: string; directorName?: string; logoUrl?: string }) {
+    let changed = false;
+
+    if (branding.companyName !== undefined && branding.companyName.trim() !== this.data.settings.companyName) {
+      this.data.settings.companyName = branding.companyName.trim();
+      try {
+        localStorage.setItem('cortado_company_name', this.data.settings.companyName);
+      } catch {
+        // ignore
+      }
+      changed = true;
+    }
+
+    if (branding.directorName !== undefined && branding.directorName.trim() !== this.data.settings.directorName) {
+      this.data.settings.directorName = branding.directorName.trim();
+      try {
+        localStorage.setItem('cortado_director_name', this.data.settings.directorName);
+      } catch {
+        // ignore
+      }
+      changed = true;
+    }
+
+    if (branding.logoUrl !== undefined && branding.logoUrl !== this.data.settings.logoUrl) {
+      this.data.settings.logoUrl = branding.logoUrl;
+      try {
+        localStorage.setItem('cortado_company_logo', branding.logoUrl);
+      } catch {
+        // ignore
+      }
+      changed = true;
+    }
+
+    if (changed) {
+      if (typeof document !== 'undefined' && this.data.settings.companyName) {
+        document.title = `${this.data.settings.companyName} | سلف وحضور الموظفين`;
+      }
+      this.data.lastUpdated = Date.now();
+      this.saveLocal();
+      this.notify();
+    }
+  }
+
+  /**
+   * Applies full company settings update.
+   */
+  private applySettingsUpdate(newSettings: Partial<CompanySettings>) {
+    this.data.settings = {
+      ...this.data.settings,
+      ...newSettings,
+    };
+
+    if (this.data.settings.companyName) {
+      try {
+        localStorage.setItem('cortado_company_name', this.data.settings.companyName);
+        if (typeof document !== 'undefined') {
+          document.title = `${this.data.settings.companyName} | سلف وحضور الموظفين`;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (this.data.settings.logoUrl !== undefined) {
+      try {
+        localStorage.setItem('cortado_company_logo', this.data.settings.logoUrl);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (this.data.settings.directorName) {
+      try {
+        localStorage.setItem('cortado_director_name', this.data.settings.directorName);
+      } catch {
+        // ignore
+      }
+    }
+
+    this.data.lastUpdated = Date.now();
+    this.saveLocal();
+    this.notify();
+  }
+
+  /**
+   * Merges authoritative server full state into local memory.
+   */
+  private applyServerFullState(serverData: any) {
+    if (!serverData) return;
+
+    const mergedSettings: CompanySettings = {
+      ...INITIAL_APP_DATA.settings,
+      ...this.data.settings,
+      ...(serverData.settings || {}),
+    };
+
+    // If server has custom company name or logo, adopt it
+    if (serverData.settings?.companyName && serverData.settings.companyName.trim()) {
+      mergedSettings.companyName = serverData.settings.companyName.trim();
+      try {
+        localStorage.setItem('cortado_company_name', mergedSettings.companyName);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (serverData.settings?.logoUrl !== undefined && serverData.settings.logoUrl !== '') {
+      mergedSettings.logoUrl = serverData.settings.logoUrl;
+      try {
+        localStorage.setItem('cortado_company_logo', mergedSettings.logoUrl);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (serverData.settings?.directorName && serverData.settings.directorName.trim()) {
+      mergedSettings.directorName = serverData.settings.directorName.trim();
+      try {
+        localStorage.setItem('cortado_director_name', mergedSettings.directorName);
+      } catch {
+        // ignore
+      }
+    }
+
+    this.data = {
+      ...this.data,
+      settings: mergedSettings,
+      employees: Array.isArray(serverData.employees) && serverData.employees.length > 0 ? serverData.employees : this.data.employees,
+      advances: Array.isArray(serverData.advances) ? serverData.advances : this.data.advances,
+      attendance: serverData.attendance && typeof serverData.attendance === 'object' ? serverData.attendance : this.data.attendance,
+      lastUpdated: serverData.lastUpdated || Date.now(),
+    };
+
+    if (typeof document !== 'undefined' && this.data.settings.companyName) {
+      document.title = `${this.data.settings.companyName} | سلف وحضور الموظفين`;
+    }
+
+    this.saveLocal();
+    this.notify();
+    this.setConnectionStatus('connected');
+  }
+
+  // ================= 2. REST API FETCH ON STARTUP =================
+
+  private async fetchServerState() {
+    try {
+      // 1. Fetch fast dedicated branding first
+      const brandRes = await fetch('/api/branding', { cache: 'no-store' });
+      if (brandRes.ok) {
+        const branding = await brandRes.json();
+        if (branding && (branding.logoUrl || (branding.companyName && branding.companyName !== 'شركة كورتادو كافيه'))) {
+          this.applyBrandingUpdate(branding);
+        }
+      }
+
+      // 2. Fetch full data
+      const dataRes = await fetch('/api/data', { cache: 'no-store' });
+      if (dataRes.ok) {
+        const fullData = await dataRes.json();
+        this.applyServerFullState(fullData);
+      }
+      this.setConnectionStatus('connected');
+    } catch (err) {
+      console.warn('Initial server state fetch note:', err);
+    }
+  }
+
+  // ================= 3. ACTIVE HEARTBEAT & SYNC POLLING =================
+
+  private startBackgroundSyncPoll() {
+    if (this.pollInterval) clearInterval(this.pollInterval);
+
+    this.pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/branding', { cache: 'no-store' });
+        if (res.ok) {
+          const branding = await res.json();
+          if (branding) {
+            const hasNameMismatch = branding.companyName && branding.companyName !== this.data.settings.companyName;
+            const hasLogoMismatch = branding.logoUrl !== undefined && branding.logoUrl !== this.data.settings.logoUrl;
+            const hasDirectorMismatch = branding.directorName && branding.directorName !== this.data.settings.directorName;
+
+            if (hasNameMismatch || hasLogoMismatch || hasDirectorMismatch) {
+              this.applyBrandingUpdate(branding);
+            }
+          }
+          this.setConnectionStatus('connected');
+        }
+      } catch {
+        // ignore offline moments
+      }
+    }, 3500);
+  }
+
+  // ================= 4. FIREBASE FIRESTORE SYNC (DUAL BACKUP) =================
+
   private async initFirestoreSync() {
     try {
-      this.setConnectionStatus('reconnecting');
       const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
 
-      // Check if doc exists in Firestore, if not seed it with clean data
+      // Check if doc exists in Firestore, seed if empty
       try {
         const snapshot = await getDoc(docRef);
         if (!snapshot.exists()) {
@@ -186,12 +564,10 @@ class SyncService {
           await setDoc(docRef, payload);
         }
       } catch (e) {
-        console.warn('Initial doc check/seed info:', e);
+        // ignore Firestore permission if not provisioned
       }
 
-      // 1. Dedicated Real-Time Listener for Company Branding & Logo
-      // This ensures that any change to the company name or logo anywhere in the world
-      // is pushed to all screens and devices instantly (< 300ms)
+      // Dedicated Branding Listener
       const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
       this.unsubscribeBranding = onSnapshot(
         brandingDocRef,
@@ -199,140 +575,57 @@ class SyncService {
         (bSnap) => {
           if (bSnap.exists()) {
             const bData = bSnap.data() as any;
-            if (bData) {
-              let changed = false;
-              if (bData.companyName && bData.companyName.trim() && bData.companyName !== this.data.settings.companyName) {
-                this.data.settings.companyName = bData.companyName.trim();
-                try {
-                  localStorage.setItem('cortado_company_name', this.data.settings.companyName);
-                } catch {
-                  // ignore
-                }
-                changed = true;
-              }
-              if (bData.logoUrl && bData.logoUrl !== this.data.settings.logoUrl) {
-                this.data.settings.logoUrl = bData.logoUrl;
-                try {
-                  localStorage.setItem('cortado_company_logo', bData.logoUrl);
-                } catch {
-                  // ignore
-                }
-                changed = true;
-              }
-              if (bData.directorName && bData.directorName.trim() && bData.directorName !== this.data.settings.directorName) {
-                this.data.settings.directorName = bData.directorName.trim();
-                try {
-                  localStorage.setItem('cortado_director_name', this.data.settings.directorName);
-                } catch {
-                  // ignore
-                }
-                changed = true;
-              }
-              if (changed) {
-                this.saveLocal();
-                this.notify();
-                this.broadcastLocal('SETTINGS_UPDATED', this.data.settings);
-              }
+            if (bData && bData.updatedByClientId !== CLIENT_ID) {
+              this.applyBrandingUpdate(bData);
             }
           }
         },
         (bError) => {
-          console.warn('Branding onSnapshot listener notice:', bError);
+          // ignore Firestore error
         }
       );
 
-      // 2. Start Real-Time onSnapshot listener for main application data
+      // Main Data Listener
       this.unsubscribeFirestore = onSnapshot(
         docRef,
         { includeMetadataChanges: false },
         (docSnap) => {
           if (docSnap.exists()) {
             const remoteData = docSnap.data() as any;
-            
-            if (remoteData) {
-              // Ignore our own updates if we already have this or newer state
-              if (remoteData.updatedByClientId === CLIENT_ID && (remoteData.lastUpdated || 0) <= this.data.lastUpdated) {
-                this.setConnectionStatus('connected');
-                return;
-              }
-              if ((remoteData.lastUpdated || 0) < this.data.lastUpdated) {
-                this.setConnectionStatus('connected');
-                return;
-              }
-
-              const settings: CompanySettings = {
-                ...INITIAL_APP_DATA.settings,
-                ...(remoteData.settings || {}),
-              };
-
-              // Prevent overwriting custom company name with default placeholder
-              const localCustomName = localStorage.getItem('cortado_company_name') || (this.data.settings.companyName !== 'شركة كورتادو كافيه' ? this.data.settings.companyName : null);
-              if (localCustomName && (!remoteData.settings?.companyName || remoteData.settings.companyName === 'شركة كورتادو كافيه')) {
-                settings.companyName = localCustomName;
-              }
-
-              // Prevent overwriting custom logo with default logo
-              const localCustomLogo = localStorage.getItem('cortado_company_logo') || (this.data.settings.logoUrl !== DEFAULT_CORTADO_LOGO ? this.data.settings.logoUrl : null);
-              if (localCustomLogo && localCustomLogo !== DEFAULT_CORTADO_LOGO) {
-                settings.logoUrl = localCustomLogo;
-              } else if (!settings.logoUrl && this.data.settings.logoUrl) {
-                settings.logoUrl = this.data.settings.logoUrl;
-              }
-
-              if (!settings.shifts || settings.shifts.length === 0) {
-                settings.shifts = INITIAL_APP_DATA.settings.shifts;
-              }
-              if (settings.maxAdvancePerMonth === undefined) {
-                settings.maxAdvancePerMonth = 2000000;
-              }
-              if (!settings.users || settings.users.length === 0) {
-                settings.users = this.data.settings.users || INITIAL_APP_DATA.settings.users;
-              }
-
-              this.data = {
-                ...INITIAL_APP_DATA,
-                settings,
-                employees: Array.isArray(remoteData.employees) ? remoteData.employees : [],
-                advances: Array.isArray(remoteData.advances) ? remoteData.advances : [],
-                attendance: remoteData.attendance && typeof remoteData.attendance === 'object' ? remoteData.attendance : {},
-                lastUpdated: remoteData.lastUpdated || Date.now(),
-              };
-
-              this.notify();
+            if (remoteData && remoteData.updatedByClientId !== CLIENT_ID) {
+              this.applyServerFullState(remoteData);
             }
-            this.setConnectionStatus('connected');
           }
         },
         (error) => {
-          console.error('Firebase Firestore onSnapshot error:', error);
-          this.setConnectionStatus('offline');
+          // ignore
         }
       );
     } catch (err) {
-      console.error('Failed to init Firebase Firestore sync:', err);
-      this.setConnectionStatus('offline');
+      // ignore
     }
   }
 
-  /**
-   * Persists the current state to Firebase Firestore and notifies other branches.
-   */
   private async pushToFirestore(merge: boolean = false): Promise<void> {
     try {
       this.isWritingToFirestore = true;
 
-      // Always push branding immediately to the fast, dedicated document
+      // Push branding
       try {
         const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
-        setDoc(brandingDocRef, {
-          companyName: this.data.settings.companyName || '',
-          directorName: this.data.settings.directorName || '',
-          logoUrl: this.data.settings.logoUrl || '',
-          lastUpdated: Date.now(),
-          updatedByClientId: CLIENT_ID,
-        }, { merge: true }).catch((e) => console.warn('Branding push background note:', e));
-      } catch (be) {
-        console.warn('Branding push sync note:', be);
+        setDoc(
+          brandingDocRef,
+          {
+            companyName: this.data.settings.companyName || '',
+            directorName: this.data.settings.directorName || '',
+            logoUrl: this.data.settings.logoUrl || '',
+            lastUpdated: Date.now(),
+            updatedByClientId: CLIENT_ID,
+          },
+          { merge: true }
+        ).catch(() => {});
+      } catch {
+        // ignore
       }
 
       const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
@@ -345,26 +638,32 @@ class SyncService {
         updatedByClientId: CLIENT_ID,
       });
 
-      // 12-second timeout wrapper so real networks have ample time to complete write
       const setDocPromise = setDoc(docRef, payload, { merge });
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Firestore write timeout')), 12000)
+        setTimeout(() => reject(new Error('Firestore timeout')), 6000)
       );
 
       await Promise.race([setDocPromise, timeoutPromise]);
-      this.setConnectionStatus('connected');
     } catch (error) {
-      console.warn('Firebase Firestore write notice (cached locally):', error);
+      // ignore
     } finally {
       this.isWritingToFirestore = false;
     }
   }
 
+  // ================= CROSS-TAB BROADCAST =================
+
   private handleLocalBroadcast(msg: any) {
     if (msg.clientId && msg.clientId === CLIENT_ID) return;
     if (msg.payload && msg.type) {
-      this.data.lastUpdated = Date.now();
-      this.notify();
+      if (msg.type === 'SETTINGS_UPDATED') {
+        this.applySettingsUpdate(msg.payload);
+      } else if (msg.type === 'BRANDING_UPDATED') {
+        this.applyBrandingUpdate(msg.payload);
+      } else {
+        this.data.lastUpdated = Date.now();
+        this.notify();
+      }
     }
   }
 
@@ -383,37 +682,49 @@ class SyncService {
     }
   }
 
-  // ================= MUTATIONS (INSTANT & NON-BLOCKING) =================
+  // ================= MUTATIONS (INSTANT REAL-TIME TO EVERYONE) =================
 
   public async addAdvance(advanceData: Omit<SalaryAdvance, 'id' | 'createdAt' | 'approved'>): Promise<SalaryAdvance> {
     const newAdvance: SalaryAdvance = {
       ...advanceData,
-      id: `adv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: `adv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       createdAt: Date.now(),
       approved: true,
       createdBy: this.data.settings.directorName || 'الإدارة',
     };
 
-    // Instant local state & storage update
+    // 1. Instant local update
     this.data.advances = [newAdvance, ...this.data.advances];
     this.data.lastUpdated = Date.now();
     this.notify();
     this.broadcastLocal('ADVANCE_ADDED', newAdvance);
 
-    // Push to Firebase Firestore in background
-    this.pushToFirestore().catch((err) => console.warn(err));
+    // 2. Post to Express server
+    fetch('/api/advances', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ advance: newAdvance, clientId: CLIENT_ID }),
+    }).catch((e) => console.warn('POST /api/advances err:', e));
+
+    // 3. Backup Firestore
+    this.pushToFirestore().catch(() => {});
     return newAdvance;
   }
 
   public async deleteAdvance(id: string): Promise<boolean> {
-    // Instant local state & storage update
+    // 1. Instant local update
     this.data.advances = this.data.advances.filter((a) => a.id !== id);
     this.data.lastUpdated = Date.now();
     this.notify();
     this.broadcastLocal('ADVANCE_DELETED', { id });
 
-    // Push to Firebase Firestore in background
-    this.pushToFirestore().catch((err) => console.warn(err));
+    // 2. Post to Express server
+    fetch(`/api/advances/${id}?clientId=${CLIENT_ID}`, {
+      method: 'DELETE',
+    }).catch((e) => console.warn('DELETE /api/advances err:', e));
+
+    // 3. Backup Firestore
+    this.pushToFirestore().catch(() => {});
     return true;
   }
 
@@ -421,14 +732,21 @@ class SyncService {
     const id = record.id || `${record.employeeId}_${record.date}`;
     const updated = { ...record, id, updatedAt: Date.now() };
 
-    // Instant local state & storage update
+    // 1. Instant local update
     this.data.attendance[id] = updated;
     this.data.lastUpdated = Date.now();
     this.notify();
     this.broadcastLocal('ATTENDANCE_UPDATED', updated);
 
-    // Push to Firebase Firestore in background
-    this.pushToFirestore().catch((err) => console.warn(err));
+    // 2. Post to Express server
+    fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ record: updated, clientId: CLIENT_ID }),
+    }).catch((e) => console.warn('POST /api/attendance err:', e));
+
+    // 3. Backup Firestore
+    this.pushToFirestore().catch(() => {});
     return updated;
   }
 
@@ -442,8 +760,15 @@ class SyncService {
     this.notify();
     this.broadcastLocal('ATTENDANCE_BULK_UPDATED', records);
 
-    // Push to Firebase Firestore in background
-    this.pushToFirestore().catch((err) => console.warn(err));
+    // Post to Express server
+    fetch('/api/attendance/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ records, clientId: CLIENT_ID }),
+    }).catch((e) => console.warn('POST /api/attendance/bulk err:', e));
+
+    // Backup Firestore
+    this.pushToFirestore().catch(() => {});
     return true;
   }
 
@@ -485,8 +810,15 @@ class SyncService {
     this.data.lastUpdated = Date.now();
     this.notify();
 
-    // Push to Firebase Firestore in background
-    this.pushToFirestore().catch((err) => console.warn(err));
+    // Post to Express server
+    fetch('/api/employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employee: saved, clientId: CLIENT_ID }),
+    }).catch((e) => console.warn('POST /api/employees err:', e));
+
+    // Backup Firestore
+    this.pushToFirestore().catch(() => {});
     return saved;
   }
 
@@ -496,16 +828,24 @@ class SyncService {
     this.notify();
     this.broadcastLocal('EMPLOYEE_DELETED', { id });
 
-    // Push to Firebase Firestore in background
-    this.pushToFirestore().catch((err) => console.warn(err));
+    fetch(`/api/employees/${id}?clientId=${CLIENT_ID}`, {
+      method: 'DELETE',
+    }).catch((e) => console.warn('DELETE /api/employees err:', e));
+
+    this.pushToFirestore().catch(() => {});
     return true;
   }
 
+  /**
+   * Updates company settings, specifically companyName, logoUrl, directorName, etc.
+   * Instantly propagates to all connected devices via SSE, localStorage, and REST.
+   */
   public async updateSettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
     this.data.settings = { ...this.data.settings, ...settings };
     this.data.lastUpdated = Date.now();
-    
-    if (this.data.settings.logoUrl) {
+
+    // 1. Immediately cache in local storage for 0ms paint
+    if (this.data.settings.logoUrl !== undefined) {
       try {
         localStorage.setItem('cortado_company_logo', this.data.settings.logoUrl);
       } catch (e) {
@@ -527,17 +867,47 @@ class SyncService {
       }
     }
 
-    // Update document title dynamically
+    // 2. Update document title dynamically
     if (typeof document !== 'undefined' && this.data.settings.companyName) {
       document.title = `${this.data.settings.companyName} | سلف وحضور الموظفين`;
     }
 
+    // 3. Notify local UI listeners immediately
     this.saveLocal();
     this.notify();
     this.broadcastLocal('SETTINGS_UPDATED', this.data.settings);
 
-    // Push to Firebase Firestore in background with merge
-    this.pushToFirestore(true).catch((err) => console.warn('pushToFirestore updateSettings err:', err));
+    // 4. Send POST to server for instant multi-device SSE broadcast
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: this.data.settings, clientId: CLIENT_ID }),
+      });
+    } catch (err) {
+      console.warn('POST /api/settings failed:', err);
+    }
+
+    // 5. Also send dedicated /api/branding update
+    if (settings.companyName !== undefined || settings.logoUrl !== undefined || settings.directorName !== undefined) {
+      try {
+        await fetch('/api/branding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyName: this.data.settings.companyName,
+            directorName: this.data.settings.directorName,
+            logoUrl: this.data.settings.logoUrl,
+            clientId: CLIENT_ID,
+          }),
+        });
+      } catch (be) {
+        console.warn('POST /api/branding failed:', be);
+      }
+    }
+
+    // 6. Push to Firebase Firestore in background with merge
+    this.pushToFirestore(true).catch(() => {});
     return this.data.settings;
   }
 
@@ -553,11 +923,16 @@ class SyncService {
     this.notify();
     this.broadcastLocal('MONTH_RESET', this.data);
 
-    // Save to Firebase Firestore in background without blocking UI
+    fetch('/api/data/reset-month', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: CLIENT_ID }),
+    }).catch(() => {});
+
     try {
-      this.pushToFirestore(false).catch((err) => console.error('Firestore resetNewMonth err:', err));
-    } catch (e) {
-      console.error(e);
+      this.pushToFirestore(false).catch(() => {});
+    } catch {
+      // ignore
     }
     return true;
   }
@@ -587,11 +962,16 @@ class SyncService {
     this.notify();
     this.broadcastLocal('DATA_RESET', this.data);
 
-    // Save to Firebase Firestore in background without blocking UI
+    fetch('/api/data/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: CLIENT_ID }),
+    }).catch(() => {});
+
     try {
-      this.pushToFirestore(false).catch((err) => console.error('Firestore resetData err:', err));
-    } catch (e) {
-      console.error(e);
+      this.pushToFirestore(false).catch(() => {});
+    } catch {
+      // ignore
     }
     return true;
   }

@@ -251,7 +251,7 @@ export const SupervisorQrDisplay: React.FC<SupervisorQrDisplayProps> = ({
         <div className="border-4 border-slate-900 rounded-3xl p-8 max-w-xl mx-auto flex flex-col items-center">
           
           {settings.logoUrl && (
-            <img src={settings.logoUrl} alt="Logo" className="h-16 w-16 object-contain mb-3" />
+            <img key={settings.logoUrl} src={settings.logoUrl} alt="Logo" className="h-16 w-16 object-contain mb-3" />
           )}
 
           <h1 className="text-2xl font-extrabold text-slate-900 mb-1">

@@ -61,6 +61,6 @@ export const INITIAL_APP_DATA: AppData = {
   employees: [],
   advances: [],
   attendance: {},
-  lastUpdated: Date.now(),
+  lastUpdated: 0,
 };
 
