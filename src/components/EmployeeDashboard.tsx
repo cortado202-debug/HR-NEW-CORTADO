@@ -9,6 +9,7 @@ import {
 } from '../utils/formatters';
 import { computeEmployeeMonthlySummary } from '../utils/payrollMath';
 import { QrScannerModal } from './QrScannerModal';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 
 import { 
   Camera, 
@@ -103,33 +104,39 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({
       {/* 1. TOP COMPANY BRANDING HEADER (مطابق لترويسة الموقع والشعار) */}
       <header className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-xs mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          {settings.logoUrl ? (
-            <img
-              key={settings.logoUrl}
-              src={settings.logoUrl}
-              alt={settings.companyName || 'شعار الشركة'}
-              className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl object-contain border border-slate-200 bg-slate-50 p-1 flex-shrink-0 shadow-2xs transition-all duration-300"
-            />
-          ) : (
-            <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center font-black text-lg sm:text-xl flex-shrink-0 shadow-2xs">
-              {settings.companyName ? settings.companyName.charAt(0) : <Building2 className="w-5 h-5" />}
-            </div>
-          )}
+          {(() => {
+            const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_logo') : null;
+            const cachedName = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_name') : null;
+            const activeLogo = (settings.logoUrl && settings.logoUrl.trim() !== '') ? settings.logoUrl : (cachedLogo && cachedLogo.trim() !== '') ? cachedLogo : DEFAULT_CORTADO_LOGO;
+            const activeCompanyName = (settings.companyName && settings.companyName.trim() !== '') ? settings.companyName : (cachedName && cachedName.trim() !== '') ? cachedName : 'شركة كورتادو كافيه';
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 key={settings.companyName} className="text-sm sm:text-base font-black text-slate-900 truncate leading-tight transition-all duration-300">
-                {settings.companyName || 'منظومة سلف وحضور الموظفين'}
-              </h1>
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex-shrink-0">
-                <User className="w-3 h-3 text-emerald-600" />
-                <span>بوابة الموظف الذاتية</span>
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
-              {formatArabicDate(todayStr)} • {settings.directorName ? `إدارة: ${settings.directorName}` : 'نظام الحضور والرواتب السحابي'}
-            </p>
-          </div>
+            return (
+              <>
+                <img
+                  key={activeLogo}
+                  src={activeLogo}
+                  alt={activeCompanyName}
+                  className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl object-contain border border-slate-200 bg-white p-1 flex-shrink-0 shadow-2xs transition-all duration-300"
+                  referrerPolicy="no-referrer"
+                />
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h1 key={activeCompanyName} className="text-sm sm:text-base font-black text-slate-900 truncate leading-tight transition-all duration-300">
+                      {activeCompanyName}
+                    </h1>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex-shrink-0">
+                      <User className="w-3 h-3 text-emerald-600" />
+                      <span>بوابة الموظف الذاتية</span>
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                    {formatArabicDate(todayStr)} • {settings.directorName ? `إدارة: ${settings.directorName}` : 'نظام الحضور والرواتب السحابي'}
+                  </p>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         {/* Action Controls */}

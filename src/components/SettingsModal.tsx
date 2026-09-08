@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Employee, CompanySettings, AppData, WorkShift, LateDeductionMode, OvertimeCalculationMode, UserAccount, UserRole } from '../types';
 import { formatSYP, parseSYPInput, getTodayDateString } from '../utils/formatters';
 import { DEFAULT_ACCOUNTS } from '../utils/initialData';
-import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
+import { DEFAULT_CORTADO_LOGO, LOGO_PRESETS } from '../utils/brandLogo';
+import { syncService } from '../services/syncService';
 import { 
   X, 
   Building2, 
@@ -278,16 +279,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           if (companyName) localStorage.setItem('cortado_company_name', companyName.trim());
         }
         try {
+          await syncService.updateBranding({
+            logoUrl: optimized,
+            companyName: companyName.trim() || undefined,
+            directorName: directorName.trim() || undefined,
+          });
           await onUpdateSettings({ 
             logoUrl: optimized,
             companyName: companyName.trim() || undefined,
             directorName: directorName.trim() || undefined,
           });
-          triggerToast('✅ تم رفع وتحديث شعار واسم المنشأة فوراً في شاشة تسجيل الدخول وجميع التقارير!');
+          triggerToast('✅ تم رفع وتحديث شعار واسم المنشأة فوراً ونشره لجميع الشاشات والأجهزة المتصلة!');
         } catch (err) {
           console.error(err);
         }
       });
+    }
+  };
+
+  const handleSelectPresetLogo = async (presetUrl: string) => {
+    setLogoUrl(presetUrl);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cortado_company_logo', presetUrl);
+    }
+    try {
+      await syncService.updateBranding({
+        logoUrl: presetUrl,
+        companyName: companyName.trim() || undefined,
+        directorName: directorName.trim() || undefined,
+      });
+      await onUpdateSettings({
+        logoUrl: presetUrl,
+        companyName: companyName.trim() || undefined,
+        directorName: directorName.trim() || undefined,
+      });
+      triggerToast('✅ تم تطبيق الشعار ونشره فوراً لكافة الأجهزة وشاشات الدخول!');
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -297,6 +325,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       localStorage.removeItem('cortado_company_logo');
     }
     try {
+      await syncService.updateBranding({ logoUrl: '', forceReset: true });
       await onUpdateSettings({ logoUrl: '' });
       triggerToast('تمت إزالة الشعار واستعادة الشعار الافتراضي');
     } catch (err) {
@@ -351,6 +380,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (companyName) localStorage.setItem('cortado_company_name', companyName.trim());
         if (directorName) localStorage.setItem('cortado_director_name', directorName.trim());
       }
+
+      await syncService.updateBranding({
+        companyName: companyName.trim(),
+        directorName: directorName.trim(),
+        logoUrl: logoUrl,
+      });
 
       await onUpdateSettings({
         companyName,
@@ -1772,6 +1807,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         استعادة الشعار الافتراضي
                       </button>
                     )}
+                  </div>
+
+                  {/* Ready Presets Gallery */}
+                  <div className="mt-3.5 pt-3 border-t border-emerald-500/20">
+                    <span className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                      أو اختر أحد التصاميم المعتمدة الجاهزة لكورتادو كافيه للتطبيق الفوري:
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {LOGO_PRESETS.map((preset) => {
+                        const isSelected = logoUrl === preset.url;
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => handleSelectPresetLogo(preset.url)}
+                            className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center gap-1 cursor-pointer ${
+                              isSelected
+                                ? 'border-emerald-600 bg-white ring-2 ring-emerald-500/30'
+                                : 'border-slate-200 bg-white hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="w-8 h-8 flex items-center justify-center overflow-hidden">
+                              <img src={preset.url} alt={preset.name} className="w-full h-full object-contain" />
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-700 truncate w-full">
+                              {preset.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>

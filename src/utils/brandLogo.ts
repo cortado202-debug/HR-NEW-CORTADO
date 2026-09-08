@@ -56,3 +56,59 @@ export const DEFAULT_CORTADO_LOGO = `data:image/svg+xml;utf8,<svg xmlns="http://
         text-anchor="middle" 
         letter-spacing="4">CAFÉ</text>
 </svg>`;
+
+// Modern Luxury Gold & Dark Emerald Cortado Cafe Emblem
+export const LUXURY_GOLD_CORTADO_LOGO = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <radialGradient id="bgDark" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="%230f291e" />
+      <stop offset="100%" stop-color="%23061711" />
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="%23fde68a" />
+      <stop offset="50%" stop-color="%23d97706" />
+      <stop offset="100%" stop-color="%23b45309" />
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="40" fill="url(%23bgDark)" />
+  <circle cx="100" cy="100" r="88" fill="none" stroke="url(%23goldGrad)" stroke-width="2.5" />
+  <circle cx="100" cy="100" r="82" fill="none" stroke="%23d97706" stroke-width="1" stroke-dasharray="4 3" opacity="0.6" />
+  <g transform="translate(100, 75)">
+    <path d="M-8,-26 Q-4,-34 -8,-42 M0,-28 Q4,-36 0,-44 M8,-26 Q12,-34 8,-42" 
+          fill="none" stroke="url(%23goldGrad)" stroke-width="2.5" stroke-linecap="round" />
+    <path d="M-26,-12 L26,-12 C26,14 16,24 0,24 C-16,24 -26,14 -26,-12 Z" 
+          fill="none" stroke="url(%23goldGrad)" stroke-width="3.5" />
+    <ellipse cx="0" cy="-12" rx="26" ry="6" fill="url(%23goldGrad)" opacity="0.3" stroke="url(%23goldGrad)" stroke-width="2" />
+    <path d="M24,-6 C33,-6 35,8 23,10" fill="none" stroke="url(%23goldGrad)" stroke-width="3.5" stroke-linecap="round" />
+    <path d="M-34,26 L34,26" stroke="url(%23goldGrad)" stroke-width="3" stroke-linecap="round" />
+  </g>
+  <text x="100" y="142" font-family="system-ui, sans-serif" font-weight="900" font-size="20" fill="url(%23goldGrad)" text-anchor="middle" letter-spacing="3">CORTADO</text>
+  <text x="100" y="162" font-family="system-ui, sans-serif" font-weight="700" font-size="11" fill="%23fde68a" text-anchor="middle" letter-spacing="4">SPECIALTY COFFEE</text>
+</svg>`;
+
+// Minimalist Modern Cortado Emblem
+export const MINIMAL_MODERN_CORTADO_LOGO = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="minGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="%23059669" />
+      <stop offset="100%" stop-color="%23064e3b" />
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="36" fill="url(%23minGrad)" />
+  <circle cx="100" cy="100" r="76" fill="%23ffffff" />
+  <g transform="translate(100, 80) scale(1.1)">
+    <path d="M-22,-10 L22,-10 C22,12 14,20 0,20 C-14,20 -22,12 -22,-10 Z" fill="%23047857" />
+    <ellipse cx="0" cy="-10" rx="22" ry="5" fill="%2310b981" />
+    <path d="M20,-4 C28,-4 29,8 19,9" fill="none" stroke="%23047857" stroke-width="3.5" stroke-linecap="round" />
+    <path d="M-28,23 L28,23" stroke="%23047857" stroke-width="3" stroke-linecap="round" />
+  </g>
+  <text x="100" y="146" font-family="system-ui, sans-serif" font-weight="900" font-size="18" fill="%23064e3b" text-anchor="middle" letter-spacing="2">CORTADO</text>
+  <text x="100" y="163" font-family="system-ui, sans-serif" font-weight="800" font-size="10" fill="%23059669" text-anchor="middle" letter-spacing="3">COFFEE &amp; MORE</text>
+</svg>`;
+
+export const LOGO_PRESETS = [
+  { id: 'classic_emerald', name: 'الشعار الكلاسيكي الأخضر', url: DEFAULT_CORTADO_LOGO },
+  { id: 'luxury_gold', name: 'الشعار الذهبي الفاخر', url: LUXURY_GOLD_CORTADO_LOGO },
+  { id: 'minimal_modern', name: 'الشعار العصري المينيمال', url: MINIMAL_MODERN_CORTADO_LOGO },
+];
+

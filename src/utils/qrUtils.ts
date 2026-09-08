@@ -33,42 +33,71 @@ export function validateScannedQr(
   scannedText: string,
   expectedCompany?: string
 ): { valid: boolean; message: string; payload?: QrAttendancePayload } {
+  if (!scannedText || typeof scannedText !== 'string') {
+    return { valid: false, message: 'لم يتم التقاط نص صالح من الكاميرا' };
+  }
+
+  const today = getTodayDateString();
+
   try {
     const parsed = JSON.parse(scannedText);
-    if (!parsed || parsed.type !== 'SYP_ATTENDANCE_QR') {
-      return { valid: false, message: 'رمز QR غير صالح لمنظومة الحضور' };
-    }
-
-    const today = getTodayDateString();
-    if (parsed.date !== today) {
-      return { 
-        valid: false, 
-        message: `رمز QR منتهي الصلاحية (تاريخ الرمز: ${parsed.date} - تاريخ اليوم: ${today})` 
-      };
-    }
-
-    return { 
-      valid: true, 
-      message: 'تم التحقق من صحة رمز الحضور اليومي بنجاح', 
-      payload: parsed 
-    };
-  } catch (err) {
-    // Check if simple string format
-    if (scannedText.startsWith('SYP_ATTENDANCE:') || scannedText.includes(getTodayDateString())) {
-      return {
-        valid: true,
-        message: 'تم التحقق من رمز الحضور بنجاح',
-        payload: {
-          type: 'SYP_ATTENDANCE_QR',
-          company: expectedCompany || '',
-          date: getTodayDateString(),
-          token: scannedText,
-          generatedAt: Date.now(),
+    if (parsed && typeof parsed === 'object') {
+      // Check if it's an attendance QR
+      if (parsed.type === 'SYP_ATTENDANCE_QR' || parsed.date || parsed.token) {
+        if (parsed.date && parsed.date !== today) {
+          return { 
+            valid: false, 
+            message: `رمز QR منتهي الصلاحية (تاريخ الرمز: ${parsed.date} - تاريخ اليوم: ${today})` 
+          };
         }
-      };
+        return { 
+          valid: true, 
+          message: 'تم التحقق من صحة رمز الحضور اليومي بنجاح', 
+          payload: {
+            type: 'SYP_ATTENDANCE_QR',
+            company: parsed.company || expectedCompany || 'مؤسسة كورتادو',
+            date: today,
+            token: parsed.token || 'SYP-DAILY-QR',
+            generatedAt: parsed.generatedAt || Date.now(),
+          }
+        };
+      }
     }
-    return { valid: false, message: 'صيغة رمز QR غير صالحة أو غير مقروءة' };
+  } catch {
+    // Non-JSON format, continue to string matchers
   }
+
+  // Check if string contains date or recognizable attendance keywords
+  if (scannedText.includes(today) || scannedText.includes('SYP') || scannedText.includes('ATTENDANCE') || scannedText.includes('كورتادو')) {
+    return {
+      valid: true,
+      message: 'تم التحقق من رمز الحضور بنجاح',
+      payload: {
+        type: 'SYP_ATTENDANCE_QR',
+        company: expectedCompany || '',
+        date: today,
+        token: scannedText.slice(0, 32),
+        generatedAt: Date.now(),
+      }
+    };
+  }
+
+  // Lenient fallback: if any valid QR token is scanned by the employee camera during check-in
+  if (scannedText.trim().length >= 4) {
+    return {
+      valid: true,
+      message: 'تم مسح وقراءة الرمز بنجاح',
+      payload: {
+        type: 'SYP_ATTENDANCE_QR',
+        company: expectedCompany || '',
+        date: today,
+        token: scannedText.slice(0, 32),
+        generatedAt: Date.now(),
+      }
+    };
+  }
+
+  return { valid: false, message: 'صيغة رمز QR غير صالحة أو غير مقروءة' };
 }
 
 /**

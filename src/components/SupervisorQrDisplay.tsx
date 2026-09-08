@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { CompanySettings } from '../types';
 import { generateDailyQrString } from '../utils/qrUtils';
 import { formatArabicDate, getTodayDateString, getCurrentTimeString } from '../utils/formatters';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 import { 
   QrCode, 
   Maximize2, 
@@ -38,9 +39,14 @@ export const SupervisorQrDisplay: React.FC<SupervisorQrDisplayProps> = ({
   const todayStr = getTodayDateString();
   const arabicDate = formatArabicDate(todayStr);
 
+  const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_logo') : null;
+  const cachedName = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_name') : null;
+  const activeLogo = (settings.logoUrl && settings.logoUrl.trim() !== '') ? settings.logoUrl : (cachedLogo && cachedLogo.trim() !== '') ? cachedLogo : DEFAULT_CORTADO_LOGO;
+  const activeCompanyName = (settings.companyName && settings.companyName.trim() !== '') ? settings.companyName : (cachedName && cachedName.trim() !== '') ? cachedName : 'شركة كورتادو كافيه';
+
   // Dynamic daily QR payload
   const qrDataString = generateDailyQrString(
-    settings.companyName || 'مؤسسة كورتادو',
+    activeCompanyName,
     `${settings.qrSecretSalt || 'syp'}_${tokenCounter}`
   );
 
@@ -207,11 +213,15 @@ export const SupervisorQrDisplay: React.FC<SupervisorQrDisplayProps> = ({
 
             {/* Header */}
             <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 bg-slate-900 text-emerald-400 rounded-xl">
-                <Building2 className="w-5 h-5" />
-              </div>
+              <img
+                key={activeLogo}
+                src={activeLogo}
+                alt={activeCompanyName}
+                className="h-8 w-8 rounded-lg object-contain border border-slate-200 bg-white p-0.5"
+                referrerPolicy="no-referrer"
+              />
               <span className="text-base font-extrabold text-slate-900">
-                {settings.companyName || 'منظومة الحضور الذكي'}
+                {activeCompanyName}
               </span>
             </div>
 
@@ -250,12 +260,10 @@ export const SupervisorQrDisplay: React.FC<SupervisorQrDisplayProps> = ({
       <div id="daily-qr-poster-printable" className="hidden print:block p-8 text-center bg-white">
         <div className="border-4 border-slate-900 rounded-3xl p-8 max-w-xl mx-auto flex flex-col items-center">
           
-          {settings.logoUrl && (
-            <img key={settings.logoUrl} src={settings.logoUrl} alt="Logo" className="h-16 w-16 object-contain mb-3" />
-          )}
+          <img key={activeLogo} src={activeLogo} alt="Logo" className="h-16 w-16 object-contain mb-3" referrerPolicy="no-referrer" />
 
           <h1 className="text-2xl font-extrabold text-slate-900 mb-1">
-            {settings.companyName || 'مؤسسة كورتادو'}
+            {activeCompanyName}
           </h1>
           <h2 className="text-lg font-bold text-slate-700 mb-4">
             نظام تسجيل الحضور الذاتي اليومي بالباركود

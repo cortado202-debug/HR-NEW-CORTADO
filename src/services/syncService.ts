@@ -350,12 +350,12 @@ class SyncService {
   }
 
   /**
-   * Applies a branding update directly and forcibly.
+   * Applies a branding update directly and forcibly across memory, storage, and events.
    */
-  private applyBrandingUpdate(branding: { companyName?: string; directorName?: string; logoUrl?: string }) {
+  private applyBrandingUpdate(branding: { companyName?: string; directorName?: string; logoUrl?: string; forceReset?: boolean }) {
     let changed = false;
 
-    if (branding.companyName !== undefined && branding.companyName.trim() !== this.data.settings.companyName) {
+    if (branding.companyName !== undefined && branding.companyName.trim() && branding.companyName.trim() !== this.data.settings.companyName) {
       this.data.settings.companyName = branding.companyName.trim();
       try {
         localStorage.setItem('cortado_company_name', this.data.settings.companyName);
@@ -365,7 +365,7 @@ class SyncService {
       changed = true;
     }
 
-    if (branding.directorName !== undefined && branding.directorName.trim() !== this.data.settings.directorName) {
+    if (branding.directorName !== undefined && branding.directorName.trim() && branding.directorName.trim() !== this.data.settings.directorName) {
       this.data.settings.directorName = branding.directorName.trim();
       try {
         localStorage.setItem('cortado_director_name', this.data.settings.directorName);
@@ -375,7 +375,15 @@ class SyncService {
       changed = true;
     }
 
-    if (branding.logoUrl !== undefined && branding.logoUrl !== this.data.settings.logoUrl) {
+    if (branding.forceReset) {
+      this.data.settings.logoUrl = '';
+      try {
+        localStorage.removeItem('cortado_company_logo');
+      } catch {
+        // ignore
+      }
+      changed = true;
+    } else if (branding.logoUrl !== undefined && branding.logoUrl.trim() !== '' && branding.logoUrl !== this.data.settings.logoUrl) {
       this.data.settings.logoUrl = branding.logoUrl;
       try {
         localStorage.setItem('cortado_company_logo', branding.logoUrl);
@@ -392,6 +400,32 @@ class SyncService {
       this.data.lastUpdated = Date.now();
       this.saveLocal();
       this.notify();
+      this.broadcastLocal('BRANDING_UPDATED', branding);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('cortado_branding_updated', { detail: branding }));
+      }
+    }
+  }
+
+  /**
+   * Dedicated global branding updater - broadcasts instantly to all devices and persists to server.
+   */
+  public async updateBranding(branding: { companyName?: string; directorName?: string; logoUrl?: string; forceReset?: boolean }): Promise<void> {
+    this.applyBrandingUpdate(branding);
+    try {
+      await fetch('/api/branding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: branding.companyName || this.data.settings.companyName,
+          directorName: branding.directorName || this.data.settings.directorName,
+          logoUrl: branding.logoUrl !== undefined ? branding.logoUrl : this.data.settings.logoUrl,
+          forceReset: branding.forceReset,
+          clientId: CLIENT_ID,
+        }),
+      });
+    } catch (e) {
+      console.warn('updateBranding server sync error:', e);
     }
   }
 
@@ -502,7 +536,27 @@ class SyncService {
       const brandRes = await fetch('/api/branding', { cache: 'no-store' });
       if (brandRes.ok) {
         const branding = await brandRes.json();
-        if (branding && (branding.logoUrl || (branding.companyName && branding.companyName !== 'شركة كورتادو كافيه'))) {
+        const localLogo = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_logo') : null;
+        const localName = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_name') : null;
+        const localDirector = typeof window !== 'undefined' ? localStorage.getItem('cortado_director_name') : null;
+
+        // Auto-heal: If local storage already has custom branding (e.g. manager uploaded it)
+        // and server currently has empty logo, push local branding to server so all clients get it immediately!
+        const serverHasNoLogo = !branding?.logoUrl || branding.logoUrl.trim() === '';
+        const localHasLogo = localLogo && localLogo.trim() !== '';
+
+        if (serverHasNoLogo && localHasLogo) {
+          fetch('/api/branding', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyName: localName || this.data.settings.companyName,
+              directorName: localDirector || this.data.settings.directorName,
+              logoUrl: localLogo,
+              clientId: CLIENT_ID,
+            }),
+          }).catch(() => {});
+        } else if (branding) {
           this.applyBrandingUpdate(branding);
         }
       }
@@ -543,7 +597,7 @@ class SyncService {
       } catch {
         // ignore offline moments
       }
-    }, 3500);
+    }, 2000);
   }
 
   // ================= 4. FIREBASE FIRESTORE SYNC (DUAL BACKUP) =================

@@ -12,10 +12,89 @@ app.use(express.urlencoded({ limit: '25mb', extended: true }));
 // File path for persistence
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'db.json');
+const BRANDING_FILE = path.join(DATA_DIR, 'branding.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// Load / Save dedicated branding
+function loadBranding(): { companyName: string; directorName: string; logoUrl: string; lastUpdated: number } {
+  try {
+    let logoFromTxt = '';
+    const txtPath = path.join(DATA_DIR, 'company_logo.txt');
+    if (fs.existsSync(txtPath)) {
+      logoFromTxt = fs.readFileSync(txtPath, 'utf-8').trim();
+    }
+
+    if (fs.existsSync(BRANDING_FILE)) {
+      const raw = fs.readFileSync(BRANDING_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        const finalLogo = (parsed.logoUrl && String(parsed.logoUrl).trim() !== '') ? parsed.logoUrl : logoFromTxt;
+        return {
+          companyName: parsed.companyName || 'شركة كورتادو كافيه',
+          directorName: parsed.directorName || 'الإدارة العامة',
+          logoUrl: finalLogo || '',
+          lastUpdated: parsed.lastUpdated || Date.now(),
+        };
+      }
+    } else if (logoFromTxt) {
+      return {
+        companyName: 'شركة كورتادو كافيه',
+        directorName: 'الإدارة العامة',
+        logoUrl: logoFromTxt,
+        lastUpdated: Date.now(),
+      };
+    }
+  } catch (err) {
+    console.error('Error loading branding file:', err);
+  }
+  return {
+    companyName: 'شركة كورتادو كافيه',
+    directorName: 'الإدارة العامة',
+    logoUrl: '',
+    lastUpdated: Date.now(),
+  };
+}
+
+function saveBranding(branding: { companyName?: string; directorName?: string; logoUrl?: string; lastUpdated?: number; forceReset?: boolean }) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const current = loadBranding();
+    let nextLogoUrl = current.logoUrl;
+    if (branding.forceReset) {
+      nextLogoUrl = '';
+      try {
+        const txtPath = path.join(DATA_DIR, 'company_logo.txt');
+        if (fs.existsSync(txtPath)) fs.unlinkSync(txtPath);
+      } catch {}
+    } else if (branding.logoUrl !== undefined && branding.logoUrl.trim() !== '') {
+      nextLogoUrl = branding.logoUrl.trim();
+    }
+
+    const updated = {
+      companyName: (branding.companyName && branding.companyName.trim() !== '') ? branding.companyName.trim() : current.companyName,
+      directorName: (branding.directorName && branding.directorName.trim() !== '') ? branding.directorName.trim() : current.directorName,
+      logoUrl: nextLogoUrl,
+      lastUpdated: branding.lastUpdated || Date.now(),
+    };
+    fs.writeFileSync(BRANDING_FILE, JSON.stringify(updated, null, 2), 'utf-8');
+
+    if (nextLogoUrl) {
+      try {
+        fs.writeFileSync(path.join(DATA_DIR, 'company_logo.txt'), nextLogoUrl, 'utf-8');
+      } catch {}
+    }
+
+    return updated;
+  } catch (err) {
+    console.error('Error saving branding file:', err);
+    return branding;
+  }
 }
 
 // Initial Data
@@ -217,7 +296,32 @@ DEFAULT_DATA.attendance = {
 };
 
 // Load or Initialize Store
+let memoryStore: any = null;
+
+function saveStore(data: any) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    memoryStore = { ...data, lastUpdated: Date.now() };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(memoryStore, null, 2), 'utf-8');
+    
+    // Also backup branding to dedicated file
+    if (memoryStore.settings) {
+      saveBranding({
+        companyName: memoryStore.settings.companyName,
+        directorName: memoryStore.settings.directorName,
+        logoUrl: memoryStore.settings.logoUrl,
+        lastUpdated: memoryStore.lastUpdated,
+      });
+    }
+  } catch (err) {
+    console.error('Error saving data file:', err);
+  }
+}
+
 function loadStore() {
+  const branding = loadBranding();
   try {
     if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
@@ -227,6 +331,17 @@ function loadStore() {
           ...DEFAULT_DATA.settings,
           ...(parsed.settings || {}),
         };
+        // Always prioritize non-empty saved branding
+        if (branding.companyName) {
+          mergedSettings.companyName = branding.companyName;
+        }
+        if (branding.directorName) {
+          mergedSettings.directorName = branding.directorName;
+        }
+        if (branding.logoUrl !== undefined && branding.logoUrl !== '') {
+          mergedSettings.logoUrl = branding.logoUrl;
+        }
+
         if (!mergedSettings.shifts || mergedSettings.shifts.length === 0) {
           mergedSettings.shifts = DEFAULT_DATA.settings.shifts;
         }
@@ -243,20 +358,22 @@ function loadStore() {
   } catch (err) {
     console.error('Error loading data file, fallback to default', err);
   }
-  saveStore(DEFAULT_DATA);
-  return DEFAULT_DATA;
+
+  const initial = {
+    ...DEFAULT_DATA,
+    settings: {
+      ...DEFAULT_DATA.settings,
+      companyName: branding.companyName || DEFAULT_DATA.settings.companyName,
+      directorName: branding.directorName || DEFAULT_DATA.settings.directorName,
+      logoUrl: branding.logoUrl || DEFAULT_DATA.settings.logoUrl,
+    },
+  };
+  return initial;
 }
 
-let memoryStore = loadStore();
-
-function saveStore(data: any) {
-  try {
-    memoryStore = { ...data, lastUpdated: Date.now() };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(memoryStore, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Error saving data file', err);
-  }
-}
+memoryStore = loadStore();
+// Ensure files exist on startup
+saveStore(memoryStore);
 
 // SSE Real-Time Clients Registry
 const sseClients = new Set<Response>();
@@ -460,33 +577,67 @@ app.post('/api/settings', (req: Request, res: Response) => {
   res.json({ success: true, settings: memoryStore.settings });
 });
 
-// GET Dedicated Company Branding (Logo, Name, Director)
+// GET Dedicated Company Branding (Logo, Name, Director) - strictly no-cache for instant live updates
 app.get('/api/branding', (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
+  const branding = loadBranding();
+  const effectiveLogo = (memoryStore?.settings?.logoUrl && String(memoryStore.settings.logoUrl).trim() !== '')
+    ? memoryStore.settings.logoUrl
+    : (branding.logoUrl || '');
+
   res.json({
-    companyName: memoryStore.settings?.companyName || 'شركة كورتادو كافيه',
-    directorName: memoryStore.settings?.directorName || 'الإدارة العامة',
-    logoUrl: memoryStore.settings?.logoUrl || '',
-    lastUpdated: memoryStore.lastUpdated || Date.now(),
+    companyName: memoryStore?.settings?.companyName || branding.companyName || 'شركة كورتادو كافيه',
+    directorName: memoryStore?.settings?.directorName || branding.directorName || 'الإدارة العامة',
+    logoUrl: effectiveLogo,
+    lastUpdated: memoryStore?.lastUpdated || branding.lastUpdated || Date.now(),
   });
 });
 
-// POST Dedicated Company Branding Update (For instant forced global sync)
+// GET direct logo route
+app.get('/api/logo', (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  const branding = loadBranding();
+  const effectiveLogo = (memoryStore?.settings?.logoUrl && String(memoryStore.settings.logoUrl).trim() !== '')
+    ? memoryStore.settings.logoUrl
+    : (branding.logoUrl || '');
+  res.json({ logoUrl: effectiveLogo });
+});
+
+// POST Dedicated Company Branding Update (For instant forced global sync across all devices)
 app.post('/api/branding', (req: Request, res: Response) => {
-  const { companyName, directorName, logoUrl, clientId } = req.body;
+  const { companyName, directorName, logoUrl, forceReset, clientId } = req.body;
   
-  if (companyName !== undefined) memoryStore.settings.companyName = companyName;
-  if (directorName !== undefined) memoryStore.settings.directorName = directorName;
-  if (logoUrl !== undefined) memoryStore.settings.logoUrl = logoUrl;
+  if (companyName !== undefined && String(companyName).trim() !== '') {
+    memoryStore.settings.companyName = String(companyName).trim();
+  }
+  if (directorName !== undefined && String(directorName).trim() !== '') {
+    memoryStore.settings.directorName = String(directorName).trim();
+  }
+  if (forceReset) {
+    memoryStore.settings.logoUrl = '';
+  } else if (logoUrl !== undefined && String(logoUrl).trim() !== '') {
+    memoryStore.settings.logoUrl = String(logoUrl).trim();
+  }
   
   saveStore(memoryStore);
-
-  const brandingPayload = {
+  const savedBranding = saveBranding({
     companyName: memoryStore.settings.companyName,
     directorName: memoryStore.settings.directorName,
     logoUrl: memoryStore.settings.logoUrl,
-    lastUpdated: memoryStore.lastUpdated,
+    forceReset,
+  });
+
+  const brandingPayload = {
+    companyName: savedBranding.companyName,
+    directorName: savedBranding.directorName,
+    logoUrl: savedBranding.logoUrl,
+    lastUpdated: Date.now(),
   };
 
+  // Broadcast to all connected devices immediately
   broadcast('BRANDING_UPDATED', brandingPayload, clientId);
   broadcast('SETTINGS_UPDATED', memoryStore.settings, clientId);
 
@@ -506,7 +657,11 @@ app.post('/api/data/reset-month', (req: Request, res: Response) => {
 // POST Reset Data to Sample
 app.post('/api/data/reset', (req: Request, res: Response) => {
   const clientId = req.body?.clientId;
+  const currentBranding = loadBranding();
   memoryStore = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  if (currentBranding.companyName) memoryStore.settings.companyName = currentBranding.companyName;
+  if (currentBranding.directorName) memoryStore.settings.directorName = currentBranding.directorName;
+  if (currentBranding.logoUrl) memoryStore.settings.logoUrl = currentBranding.logoUrl;
   saveStore(memoryStore);
   broadcast('DATA_RESET', memoryStore, clientId);
   res.json({ success: true, data: memoryStore });

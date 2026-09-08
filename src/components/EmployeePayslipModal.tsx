@@ -128,8 +128,13 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
   const matchedShift = matchShiftForTime('08:00', settings.shifts, currentEmployee.assignedShiftId);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-xl w-full max-w-4xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[94vh] relative">
+    <div 
+      className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-xl w-full max-w-4xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[94vh] relative z-10 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Top Controls Toolbar (Hidden in Print & PDF) */}
         <div className="p-3 sm:p-4 border-b border-slate-200 bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print relative">

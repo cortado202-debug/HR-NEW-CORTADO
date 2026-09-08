@@ -1,0 +1,192 @@
+{
+  "settings": {
+    "companyName": "شركة كورتادو كافيه",
+    "logoUrl": "",
+    "currencySymbol": "ل.س",
+    "defaultWorkDays": 26,
+    "defaultWorkHours": 8,
+    "defaultAbsentDeductionMultiplier": 1,
+    "defaultLatePenaltyMethod": "hourly_rate",
+    "directorName": "الإدارة العامة",
+    "workStartTime": "08:00",
+    "workEndTime": "17:00",
+    "maxAdvancePerMonth": 2000000,
+    "shifts": [
+      {
+        "id": "shift-1",
+        "name": "الشفت الصباحي",
+        "startTime": "08:00",
+        "endTime": "17:00",
+        "graceMinutes": 10,
+        "active": true
+      },
+      {
+        "id": "shift-2",
+        "name": "الشفت المسائي",
+        "startTime": "17:00",
+        "endTime": "02:00",
+        "graceMinutes": 10,
+        "active": true
+      }
+    ]
+  },
+  "employees": [
+    {
+      "id": "emp-1",
+      "name": "محمد خالد الحلبي",
+      "jobTitle": "رئيس قسم المحاسبة والمالية",
+      "phone": "0944123456",
+      "baseSalary": 5500000,
+      "dailyWorkHours": 8,
+      "monthlyWorkDays": 26,
+      "absentDeductionRate": 1,
+      "active": true,
+      "joinedDate": "2023-01-15",
+      "avatarColor": "bg-slate-700"
+    },
+    {
+      "id": "emp-2",
+      "name": "سامر أحمد النجار",
+      "jobTitle": "مشرف مستودعات ولوجستيات",
+      "phone": "0933789012",
+      "baseSalary": 4200000,
+      "dailyWorkHours": 8,
+      "monthlyWorkDays": 26,
+      "absentDeductionRate": 1,
+      "active": true,
+      "joinedDate": "2023-05-10",
+      "avatarColor": "bg-emerald-700"
+    },
+    {
+      "id": "emp-3",
+      "name": "عمر ياسين الكردي",
+      "jobTitle": "مندوب مبيعات وتوزيع",
+      "phone": "0955432109",
+      "baseSalary": 3800000,
+      "dailyWorkHours": 8,
+      "monthlyWorkDays": 26,
+      "absentDeductionRate": 1,
+      "active": true,
+      "joinedDate": "2024-02-01",
+      "avatarColor": "bg-blue-700"
+    },
+    {
+      "id": "emp-4",
+      "name": "ريم طارق الشامي",
+      "jobTitle": "أخصائية موارد بشرية وشؤون إدارية",
+      "phone": "0988654321",
+      "baseSalary": 4800000,
+      "dailyWorkHours": 8,
+      "monthlyWorkDays": 26,
+      "absentDeductionRate": 1,
+      "active": true,
+      "joinedDate": "2023-09-01",
+      "avatarColor": "bg-purple-700"
+    },
+    {
+      "id": "emp-5",
+      "name": "باسل محمود إدريس",
+      "jobTitle": "فني صيانة ومعدات",
+      "phone": "0966543210",
+      "baseSalary": 3500000,
+      "dailyWorkHours": 8,
+      "monthlyWorkDays": 26,
+      "absentDeductionRate": 1,
+      "active": true,
+      "joinedDate": "2024-06-15",
+      "avatarColor": "bg-amber-700"
+    },
+    {
+      "id": "emp-6",
+      "name": "طارق عبد الله مراد",
+      "jobTitle": "سائق توزيع وآليات",
+      "phone": "0999876543",
+      "baseSalary": 3200000,
+      "dailyWorkHours": 8,
+      "monthlyWorkDays": 26,
+      "absentDeductionRate": 1,
+      "active": true,
+      "joinedDate": "2024-08-01",
+      "avatarColor": "bg-cyan-700"
+    }
+  ],
+  "advances": [
+    {
+      "id": "adv-101",
+      "employeeId": "emp-3",
+      "employeeName": "عمر ياسين الكردي",
+      "amount": 450000,
+      "date": "2026-09-08",
+      "time": "09:15",
+      "note": "سلفة لتغطية مصاريف صيانة سيارة التوزيع",
+      "createdAt": 1788844665747,
+      "createdBy": "الإدارة",
+      "approved": true
+    },
+    {
+      "id": "adv-102",
+      "employeeId": "emp-5",
+      "employeeName": "باسل محمود إدريس",
+      "amount": 300000,
+      "date": "2026-09-08",
+      "time": "11:30",
+      "note": "سلفة طارئة شخصية",
+      "createdAt": 1788851865747,
+      "createdBy": "الإدارة",
+      "approved": true
+    }
+  ],
+  "attendance": {
+    "emp-1_2026-09-08": {
+      "id": "emp-1_2026-09-08",
+      "employeeId": "emp-1",
+      "date": "2026-09-08",
+      "status": "present",
+      "checkInTime": "08:25",
+      "updatedAt": 1788855465747
+    },
+    "emp-2_2026-09-08": {
+      "id": "emp-2_2026-09-08",
+      "employeeId": "emp-2",
+      "date": "2026-09-08",
+      "status": "present",
+      "checkInTime": "08:30",
+      "updatedAt": 1788855465747
+    },
+    "emp-3_2026-09-08": {
+      "id": "emp-3_2026-09-08",
+      "employeeId": "emp-3",
+      "date": "2026-09-08",
+      "status": "late",
+      "lateMinutes": 45,
+      "checkInTime": "09:15",
+      "note": "ازدحام مروري",
+      "updatedAt": 1788855465747
+    },
+    "emp-4_2026-09-08": {
+      "id": "emp-4_2026-09-08",
+      "employeeId": "emp-4",
+      "date": "2026-09-08",
+      "status": "present",
+      "checkInTime": "08:28",
+      "updatedAt": 1788855465747
+    },
+    "emp-5_2026-09-08": {
+      "id": "emp-5_2026-09-08",
+      "employeeId": "emp-5",
+      "date": "2026-09-08",
+      "status": "half_day",
+      "note": "مغادرة 12:30",
+      "updatedAt": 1788855465747
+    },
+    "emp-6_2026-09-08": {
+      "id": "emp-6_2026-09-08",
+      "employeeId": "emp-6",
+      "date": "2026-09-08",
+      "status": "present",
+      "checkInTime": "08:15",
+      "updatedAt": 1788855465747
+    }
+  },
+  "lastUpdated": 1788857324832
+}

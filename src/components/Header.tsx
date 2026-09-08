@@ -54,6 +54,11 @@ export const Header: React.FC<HeaderProps> = ({
   const isAdmin = !currentUser || currentUser.role === 'admin';
   const isSupervisor = currentUser?.role === 'supervisor';
 
+  const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_logo') : null;
+  const cachedName = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_name') : null;
+  const activeLogo = (settings.logoUrl && settings.logoUrl.trim() !== '') ? settings.logoUrl : (cachedLogo && cachedLogo.trim() !== '') ? cachedLogo : DEFAULT_CORTADO_LOGO;
+  const activeCompanyName = (settings.companyName && settings.companyName.trim() !== '') ? settings.companyName : (cachedName && cachedName.trim() !== '') ? cachedName : 'شركة كورتادو كافيه';
+
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs no-print">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -61,22 +66,18 @@ export const Header: React.FC<HeaderProps> = ({
           
           {/* Right: Company Logo & Info */}
           <div className="flex items-center gap-2.5 min-w-0">
-            {(() => {
-              const activeLogo = settings.logoUrl || DEFAULT_CORTADO_LOGO;
-              return (
-                <img
-                  key={activeLogo}
-                  src={activeLogo}
-                  alt={settings.companyName || 'Cortado'}
-                  className="h-9 w-9 md:h-10 md:w-10 rounded-xl object-contain border border-slate-200 bg-white p-0.5 flex-shrink-0 shadow-2xs transition-all duration-300"
-                />
-              );
-            })()}
+            <img
+              key={activeLogo}
+              src={activeLogo}
+              alt={activeCompanyName}
+              className="h-9 w-9 md:h-10 md:w-10 rounded-xl object-contain border border-slate-200 bg-white p-0.5 flex-shrink-0 shadow-2xs transition-all duration-300"
+              referrerPolicy="no-referrer"
+            />
             
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 key={settings.companyName} className="text-sm md:text-base font-bold text-slate-900 truncate leading-tight transition-all duration-300">
-                  {settings.companyName || 'منظومة سلف وحضور الموظفين'}
+                <h1 key={activeCompanyName} className="text-sm md:text-base font-bold text-slate-900 truncate leading-tight transition-all duration-300">
+                  {activeCompanyName}
                 </h1>
 
                 {/* Role Badge */}

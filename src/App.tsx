@@ -438,12 +438,15 @@ export default function App() {
         />
       )}
 
-      {/* Salary Advance Receipt Voucher Modal */}
-      <AdvanceReceiptModal
-        isOpen={!!selectedAdvanceForReceipt}
-        onClose={() => setSelectedAdvanceForReceipt(null)}
-        advance={selectedAdvanceForReceipt}
+      {/* Full Advances Ledger Modal */}
+      <AdvancesLedgerModal
+        isOpen={isAdvancesLedgerOpen}
+        onClose={() => setIsAdvancesLedgerOpen(false)}
+        advances={data.advances}
+        employees={data.employees}
         settings={data.settings}
+        onDeleteAdvance={handleDeleteAdvance}
+        onViewReceipt={handleViewReceipt}
       />
 
       {/* Individual Employee Detailed Statement & Payslip Modal (PDF Download - Admin Only) */}
@@ -462,15 +465,12 @@ export default function App() {
         />
       )}
 
-      {/* Full Advances Ledger Modal */}
-      <AdvancesLedgerModal
-        isOpen={isAdvancesLedgerOpen}
-        onClose={() => setIsAdvancesLedgerOpen(false)}
-        advances={data.advances}
-        employees={data.employees}
+      {/* Salary Advance Receipt Voucher Modal (Rendered in the frontmost layer) */}
+      <AdvanceReceiptModal
+        isOpen={!!selectedAdvanceForReceipt}
+        onClose={() => setSelectedAdvanceForReceipt(null)}
+        advance={selectedAdvanceForReceipt}
         settings={data.settings}
-        onDeleteAdvance={handleDeleteAdvance}
-        onViewReceipt={handleViewReceipt}
       />
 
     </div>

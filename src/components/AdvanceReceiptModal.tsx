@@ -49,8 +49,13 @@ export const AdvanceReceiptModal: React.FC<AdvanceReceiptModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+    <div 
+      className="fixed inset-0 z-[80] flex items-center justify-center p-3 bg-slate-950/75 backdrop-blur-xs overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden flex flex-col relative z-10 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Modal Controls Bar (Hidden during print) */}
         <div className="p-3.5 sm:p-4 border-b border-slate-200 flex items-center justify-between bg-[#F8FAFC] no-print">

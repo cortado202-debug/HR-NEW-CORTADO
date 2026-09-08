@@ -163,6 +163,7 @@ export type SyncEventType =
   | 'EMPLOYEE_UPDATED'
   | 'EMPLOYEE_DELETED'
   | 'SETTINGS_UPDATED'
+  | 'BRANDING_UPDATED'
   | 'MONTH_RESET'
   | 'DATA_RESET';
 

@@ -117,7 +117,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
               handleProcessCode(barcodes[0].rawValue);
               return;
             }
-            animationFrameId.current = requestAnimationFrame(scanFrame);
+            // If native detector found nothing in this frame, try jsQR immediately
+            runJsQRFallback(video);
           })
           .catch(() => {
             runJsQRFallback(video);
@@ -132,7 +133,7 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
     runJsQRFallback(video);
   }, [handleProcessCode]);
 
-  // Optimized jsQR scanner with scaled canvas for 60fps responsiveness
+  // Optimized jsQR scanner with high resolution canvas for instant barcode recognition
   const runJsQRFallback = (video: HTMLVideoElement) => {
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -146,8 +147,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
       return;
     }
 
-    // Downscale large frames to max 640px to eliminate CPU freeze and make detection instantaneous
-    const maxDim = 640;
+    // Preserve high resolution (max 1000px) so fine QR patterns remain sharp and readable
+    const maxDim = 1000;
     let targetW = video.videoWidth;
     let targetH = video.videoHeight;
     if (targetW > maxDim || targetH > maxDim) {
@@ -409,12 +410,12 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
             /* Live Camera Viewfinder (Wide Angle, Natural Aspect Ratio, Zero Artificial Zoom) */
             <div className="w-full flex flex-col items-center">
               
-              <div className="relative w-full aspect-[4/3] max-h-[340px] bg-slate-950 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border-2 border-slate-800">
+              <div className="relative w-full h-[320px] sm:h-[380px] bg-black rounded-2xl overflow-hidden shadow-inner flex items-center justify-center border-2 border-slate-800">
                 
-                {/* Live Video Element - Natural Fit Without Cropping */}
+                {/* Live Video Element - Natural 100% Fit Without Cropping or Artificial Zoom */}
                 <video
                   ref={videoRef}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain bg-black"
                   autoPlay
                   playsInline
                   muted
@@ -424,8 +425,8 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                 <canvas ref={canvasRef} className="hidden" />
 
                 {/* Target Frame Reticle Overlay - Spacious and balanced */}
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6">
-                  <div className="w-52 h-52 sm:w-60 sm:h-60 border-2 border-emerald-400/90 rounded-2xl relative flex items-center justify-center shadow-lg">
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-4">
+                  <div className="w-56 h-56 sm:w-64 sm:h-64 border-2 border-emerald-400/90 rounded-2xl relative flex items-center justify-center shadow-lg">
                     
                     {/* Corner accents */}
                     <span className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl"></span>
@@ -439,9 +440,9 @@ export const QrScannerModal: React.FC<QrScannerModalProps> = ({
                 </div>
 
                 {/* Wide Angle / Status Badge */}
-                <div className="absolute top-2.5 right-2.5 bg-slate-950/75 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/15 flex items-center gap-1.5 shadow-xs">
+                <div className="absolute top-2.5 right-2.5 bg-slate-950/80 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-1 rounded-lg border border-white/15 flex items-center gap-1.5 shadow-xs">
                   <Scan className="w-3 h-3 text-emerald-400" />
-                  <span>زاوية واسعة ({currentZoom ? `${currentZoom.toFixed(1)}x` : '1x'})</span>
+                  <span>كاميرا عريضة بدون زوم ({currentZoom ? `${currentZoom.toFixed(1)}x` : '1x'})</span>
                 </div>
 
                 {/* Processing Overlay */}
