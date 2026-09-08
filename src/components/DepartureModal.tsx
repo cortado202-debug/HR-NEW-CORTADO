@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, AttendanceRecord, CompanySettings } from '../types';
+import { EnglishTimePicker } from './ui/EnglishTimePicker';
 import { formatSYP, formatArabicDate, getCurrentTimeString } from '../utils/formatters';
 import { calculateDailyRate, calculateHourlyRate } from '../utils/payrollMath';
 import { X, DoorOpen, Clock, AlertCircle, Check } from 'lucide-react';
@@ -165,22 +166,23 @@ export const DepartureModal: React.FC<DepartureModalProps> = ({
               <label className="text-[11px] font-bold text-slate-700">ساعات المغادرة (مخصص)</label>
               <input
                 type="number"
+                lang="en"
+                dir="ltr"
                 step="0.25"
                 min="0.25"
                 max="12"
                 value={departureHours}
                 onChange={(e) => setDepartureHours(Number(e.target.value))}
-                className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold font-mono outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
+                className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold font-mono outline-none focus:bg-white focus:ring-1 focus:ring-slate-900 text-center"
               />
             </div>
 
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-bold text-slate-700">وقت تسجيل المغادرة</label>
-              <input
-                type="time"
+              <EnglishTimePicker
                 value={departureTime}
-                onChange={(e) => setDepartureTime(e.target.value)}
-                className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold font-mono outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
+                onChange={setDepartureTime}
+                className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold font-mono hover:bg-slate-100"
               />
             </div>
           </div>
@@ -215,10 +217,12 @@ export const DepartureModal: React.FC<DepartureModalProps> = ({
             <div className="relative">
               <input
                 type="number"
+                lang="en"
+                dir="ltr"
                 placeholder={`تلقائي: ${autoCalculatedDeduction}`}
                 value={customDeduction}
                 onChange={(e) => setCustomDeduction(e.target.value)}
-                className="w-full bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
+                className="w-full bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900 text-center"
               />
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">ل.س</span>
             </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, AttendanceRecord, CompanySettings } from '../types';
+import { EnglishTimePicker } from './ui/EnglishTimePicker';
 import { formatSYP, parseSYPInput, formatNumberWithCommas } from '../utils/formatters';
 import { 
   calculateHourlyRate, 
@@ -230,11 +231,10 @@ export const OvertimeModal: React.FC<OvertimeModalProps> = ({
                 <Clock className="w-3.5 h-3.5 text-emerald-600" />
                 وقت الانصراف / الخروج
               </label>
-              <input
-                type="time"
+              <EnglishTimePicker
                 value={checkOutTime}
-                onChange={(e) => setCheckOutTime(e.target.value)}
-                className="w-full text-xs font-mono font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500"
+                onChange={setCheckOutTime}
+                className="w-full text-xs font-mono font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none hover:bg-slate-100"
               />
             </div>
           </div>
@@ -282,6 +282,8 @@ export const OvertimeModal: React.FC<OvertimeModalProps> = ({
               />
               <input
                 type="number"
+                lang="en"
+                dir="ltr"
                 min="0"
                 max="12"
                 step="0.25"

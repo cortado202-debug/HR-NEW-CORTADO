@@ -74,39 +74,49 @@ export function getCurrentTimeString(): string {
 }
 
 /**
- * Arabic formatted date string
- * Example: "السبت، 29 آب 2026"
+ * Formatted date string with Arabic weekday and English numerals (YYYY/MM/DD)
+ * Example: "الثلاثاء، 2026/09/08" (Month as number, English numbers, no Arabic month name)
  */
-export function formatArabicDate(dateStr: string): string {
+const ARABIC_WEEKDAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+export function formatArabicDate(dateStr: string, includeDayName: boolean = true): string {
   if (!dateStr) return '';
   try {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    
-    return new Intl.DateTimeFormat('ar-SY', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(date);
+    const cleanDate = dateStr.split('T')[0];
+    const parts = cleanDate.split('-');
+    if (parts.length < 3) return dateStr;
+    const year = parts[0];
+    const month = parts[1].padStart(2, '0');
+    const day = parts[2].padStart(2, '0');
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+
+    if (isNaN(date.getTime())) return dateStr;
+
+    const formattedNumeric = `${year}/${month}/${day}`;
+
+    if (!includeDayName) {
+      return formattedNumeric;
+    }
+
+    const dayName = ARABIC_WEEKDAYS[date.getDay()] || '';
+    return `${dayName}، ${formattedNumeric}`;
   } catch {
     return dateStr;
   }
 }
 
 /**
- * Arabic short date (e.g. 29 آب)
+ * Short date with month and day as numbers in English digits (e.g. 09/08)
  */
 export function formatArabicShortDate(dateStr: string): string {
   if (!dateStr) return '';
   try {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    
-    return new Intl.DateTimeFormat('ar-SY', {
-      day: 'numeric',
-      month: 'short',
-    }).format(date);
+    const cleanDate = dateStr.split('T')[0];
+    const parts = cleanDate.split('-');
+    if (parts.length < 3) return dateStr;
+    const month = parts[1].padStart(2, '0');
+    const day = parts[2].padStart(2, '0');
+    return `${month}/${day}`;
   } catch {
     return dateStr;
   }
@@ -118,30 +128,29 @@ export function formatArabicShortDate(dateStr: string): string {
 export function getDayOfWeekArabic(dateStr: string): string {
   if (!dateStr) return '';
   try {
-    const [year, month, day] = dateStr.split('-').map(Number);
+    const cleanDate = dateStr.split('T')[0];
+    const parts = cleanDate.split('-');
+    if (parts.length < 3) return '';
+    const [year, month, day] = parts.map(Number);
     const date = new Date(year, month - 1, day);
-    return new Intl.DateTimeFormat('ar-SY', { weekday: 'long' }).format(date);
+    if (isNaN(date.getTime())) return '';
+    return ARABIC_WEEKDAYS[date.getDay()] || '';
   } catch {
     return '';
   }
 }
 
 /**
- * Arabic month name and year (e.g. "آب 2026")
- */
-/**
- * Arabic month name and year (e.g. "آب 2026")
+ * Month and year formatted with month as number in English digits (e.g. "شهر 09 / 2026")
  */
 export function formatArabicMonth(yearMonth: string): string {
   if (!yearMonth) return '';
   try {
-    const [year, month] = yearMonth.split('-').map(Number);
-    const date = new Date(year, month - 1, 1);
-    
-    return new Intl.DateTimeFormat('ar-SY', {
-      year: 'numeric',
-      month: 'long',
-    }).format(date);
+    const parts = yearMonth.split('-');
+    if (parts.length < 2) return yearMonth;
+    const year = parts[0];
+    const month = parts[1].padStart(2, '0');
+    return `شهر ${month} / ${year}`;
   } catch {
     return yearMonth;
   }

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="ar-u-nu-latn" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
@@ -15,6 +15,24 @@
   </head>
   <body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-slate-800 selection:text-white min-h-screen">
     <div id="root"></div>
+    <script>
+      (function() {
+        function enforceEnglishInputs() {
+          var inputs = document.querySelectorAll('input[type="date"], input[type="time"], input[type="month"], input[type="datetime-local"], input[type="number"]');
+          for (var i = 0; i < inputs.length; i++) {
+            var el = inputs[i];
+            if (el.getAttribute('lang') !== 'en') el.setAttribute('lang', 'en');
+            if (el.getAttribute('dir') !== 'ltr') el.setAttribute('dir', 'ltr');
+          }
+        }
+        enforceEnglishInputs();
+        if (typeof MutationObserver !== 'undefined') {
+          var observer = new MutationObserver(enforceEnglishInputs);
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+        }
+        document.addEventListener('DOMContentLoaded', enforceEnglishInputs);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

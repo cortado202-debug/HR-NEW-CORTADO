@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Employee, AttendanceRecord, CompanySettings } from '../types';
+import { EnglishMonthPicker } from './ui/EnglishMonthPicker';
 import { 
   formatSYP, 
   getTodayDateString, 
@@ -133,14 +134,11 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             {/* Month Picker */}
             <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-2xs">
-              <Calendar className="w-4 h-4 text-slate-500" />
               <label htmlFor="ledger-month-select" className="text-xs font-bold text-slate-700">الشهر:</label>
-              <input
+              <EnglishMonthPicker
                 id="ledger-month-select"
-                type="month"
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="text-xs font-bold font-mono text-slate-900 outline-none bg-transparent"
+                onChange={setSelectedMonth}
               />
             </div>
 

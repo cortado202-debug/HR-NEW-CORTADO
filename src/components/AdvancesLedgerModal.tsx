@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { SalaryAdvance, Employee, CompanySettings } from '../types';
+import { EnglishMonthPicker } from './ui/EnglishMonthPicker';
 import { formatSYP, formatArabicDate } from '../utils/formatters';
 import { 
   X, 
@@ -165,12 +166,12 @@ export const AdvancesLedgerModal: React.FC<AdvancesLedgerModalProps> = ({
             </select>
 
             {/* Month Filter */}
-            <input
-              type="month"
-              value={selectedMonthFilter}
-              onChange={(e) => setSelectedMonthFilter(e.target.value)}
-              className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono outline-none focus:bg-white"
-            />
+            <div className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-mono">
+              <EnglishMonthPicker
+                value={selectedMonthFilter}
+                onChange={setSelectedMonthFilter}
+              />
+            </div>
             {selectedMonthFilter && (
               <button
                 onClick={() => setSelectedMonthFilter('')}

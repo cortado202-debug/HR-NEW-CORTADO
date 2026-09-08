@@ -274,7 +274,7 @@ export const SupervisorQrDisplay: React.FC<SupervisorQrDisplayProps> = ({
           </div>
 
           <div className="text-sm font-bold font-mono text-slate-800 mt-2">
-            تاريخ اليوم: {arabicDate} ({todayStr})
+            تاريخ اليوم: {arabicDate}
           </div>
 
           <p className="text-xs text-slate-600 mt-4 leading-relaxed max-w-md">

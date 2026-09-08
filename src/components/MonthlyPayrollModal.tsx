@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Employee, AttendanceRecord, SalaryAdvance, CompanySettings, EmployeeMonthlySummary } from '../types';
+import { EnglishMonthPicker } from './ui/EnglishMonthPicker';
 import { formatSYP, formatArabicMonth, getTodayDateString } from '../utils/formatters';
 import { computeEmployeeMonthlySummary } from '../utils/payrollMath';
 import { triggerPrint } from '../utils/printPdfUtils';
@@ -164,13 +165,10 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
           <div className="flex flex-wrap items-center gap-1.5">
             
             {/* Month Input */}
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs">
-              <Calendar className="w-3.5 h-3.5 text-slate-500" />
-              <input
-                type="month"
+            <div className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs">
+              <EnglishMonthPicker
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="outline-none font-mono bg-transparent text-xs"
+                onChange={setSelectedMonth}
               />
             </div>
 
@@ -223,7 +221,7 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
             )}
           </div>
           <div className="mt-4 p-2 bg-gray-100 border border-gray-300 rounded font-bold text-sm">
-            كشف رواتب شهر: {formatArabicMonth(selectedMonth)} ({selectedMonth})
+            كشف رواتب: {formatArabicMonth(selectedMonth)}
           </div>
         </div>
 

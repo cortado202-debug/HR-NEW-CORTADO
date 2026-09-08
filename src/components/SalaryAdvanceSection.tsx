@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Employee, SalaryAdvance, CompanySettings } from '../types';
+import { EnglishDatePicker } from './ui/EnglishDatePicker';
+import { EnglishTimePicker } from './ui/EnglishTimePicker';
 import { 
   formatSYP, 
   parseSYPInput, 
@@ -344,12 +346,11 @@ export const SalaryAdvanceSection: React.FC<SalaryAdvanceSectionProps> = ({
                 <Calendar className="w-3.5 h-3.5 text-slate-500" />
                 التاريخ
               </label>
-              <input
+              <EnglishDatePicker
                 id="advance-date-input"
-                type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-medium rounded-lg px-2.5 py-2 focus:bg-white focus:ring-1 focus:ring-slate-900 outline-none"
+                onChange={setDate}
+                className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-bold rounded-lg px-2.5 py-2 hover:bg-slate-100"
               />
             </div>
 
@@ -359,12 +360,11 @@ export const SalaryAdvanceSection: React.FC<SalaryAdvanceSectionProps> = ({
                 <Clock className="w-3.5 h-3.5 text-slate-500" />
                 الوقت
               </label>
-              <input
+              <EnglishTimePicker
                 id="advance-time-input"
-                type="time"
                 value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-medium rounded-lg px-2.5 py-2 focus:bg-white focus:ring-1 focus:ring-slate-900 outline-none"
+                onChange={setTime}
+                className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-bold font-mono rounded-lg px-2.5 py-2 hover:bg-slate-100"
               />
             </div>
 

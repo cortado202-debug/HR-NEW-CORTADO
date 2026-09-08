@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, CompanySettings, AppData, WorkShift, LateDeductionMode, OvertimeCalculationMode, UserAccount, UserRole } from '../types';
+import { EnglishTimePicker } from './ui/EnglishTimePicker';
 import { formatSYP, parseSYPInput, getTodayDateString } from '../utils/formatters';
 import { DEFAULT_ACCOUNTS } from '../utils/initialData';
 import { DEFAULT_CORTADO_LOGO, LOGO_PRESETS } from '../utils/brandLogo';
@@ -900,21 +901,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       
                       <div className="flex flex-col gap-1">
                         <label className="text-[11px] font-bold text-slate-700">وقت بدء الشفت (بداية احتساب الحضور)</label>
-                        <input
-                          type="time"
+                        <EnglishTimePicker
                           value={shift.startTime}
-                          onChange={(e) => handleUpdateShift(shift.id, { startTime: e.target.value })}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
+                          onChange={(val) => handleUpdateShift(shift.id, { startTime: val })}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold hover:bg-slate-100"
                         />
                       </div>
 
                       <div className="flex flex-col gap-1">
                         <label className="text-[11px] font-bold text-slate-700">وقت نهاية الشفت (الانصراف التلقائي)</label>
-                        <input
-                          type="time"
+                        <EnglishTimePicker
                           value={shift.endTime}
-                          onChange={(e) => handleUpdateShift(shift.id, { endTime: e.target.value })}
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
+                          onChange={(val) => handleUpdateShift(shift.id, { endTime: val })}
+                          className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-bold hover:bg-slate-100"
                         />
                       </div>
 

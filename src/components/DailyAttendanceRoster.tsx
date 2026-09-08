@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, AttendanceRecord, AttendanceStatus, CompanySettings, WorkShift } from '../types';
+import { EnglishDatePicker } from './ui/EnglishDatePicker';
 import { 
   formatSYP, 
   getTodayDateString, 
@@ -263,12 +264,11 @@ export const DailyAttendanceRoster: React.FC<DailyAttendanceRosterProps> = ({
               <ChevronRight className="w-4 h-4" />
             </button>
 
-            <div className="relative">
-              <input
-                type="date"
+            <div className="relative min-w-[130px]">
+              <EnglishDatePicker
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-bold font-mono px-3 py-1.5 rounded-lg focus:bg-white focus:ring-1 focus:ring-slate-900 outline-none"
+                onChange={setSelectedDate}
+                className="bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-bold font-mono px-2.5 py-1.5 rounded-lg hover:bg-slate-100"
               />
             </div>
 

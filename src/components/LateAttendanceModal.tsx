@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, AttendanceRecord, CompanySettings } from '../types';
+import { EnglishTimePicker } from './ui/EnglishTimePicker';
 import { formatSYP, formatArabicDate, getCurrentTimeString } from '../utils/formatters';
 import { calculateDailyRate, calculateHourlyRate, calculateLateDeduction } from '../utils/payrollMath';
 import { X, Clock, AlertCircle, Check, DollarSign, Calculator } from 'lucide-react';
@@ -154,21 +155,22 @@ export const LateAttendanceModal: React.FC<LateAttendanceModalProps> = ({
               <label className="text-[11px] font-bold text-slate-700">تخصيص الدقائق يدوياً</label>
               <input
                 type="number"
+                lang="en"
+                dir="ltr"
                 min="1"
                 max="480"
                 value={minutes}
                 onChange={(e) => setMinutes(Number(e.target.value))}
-                className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold font-mono outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
+                className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold font-mono outline-none focus:bg-white focus:ring-1 focus:ring-slate-900 text-center"
               />
             </div>
 
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-bold text-slate-700">وقت الحضور الفعلي</label>
-              <input
-                type="time"
+              <EnglishTimePicker
                 value={checkInTime}
-                onChange={(e) => setCheckInTime(e.target.value)}
-                className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold font-mono outline-none focus:bg-white focus:ring-1 focus:ring-slate-900"
+                onChange={setCheckInTime}
+                className="bg-[#F8FAFC] border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold font-mono hover:bg-slate-100"
               />
             </div>
           </div>
@@ -223,13 +225,15 @@ export const LateAttendanceModal: React.FC<LateAttendanceModalProps> = ({
                 <div className="relative">
                   <input
                     type="number"
+                    lang="en"
+                    dir="ltr"
                     placeholder={`الافتراضي: ${standardHourlyRate}`}
                     value={customRatePerHour}
                     onChange={(e) => {
                       setCustomRatePerHour(e.target.value);
                       if (e.target.value) setCustomRatePerMinute('');
                     }}
-                    className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500 text-center"
                   />
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">ل.س/س</span>
                 </div>
@@ -240,13 +244,15 @@ export const LateAttendanceModal: React.FC<LateAttendanceModalProps> = ({
                 <div className="relative">
                   <input
                     type="number"
+                    lang="en"
+                    dir="ltr"
                     placeholder={`الافتراضي: ${Math.round(standardHourlyRate / 60)}`}
                     value={customRatePerMinute}
                     onChange={(e) => {
                       setCustomRatePerMinute(e.target.value);
                       if (e.target.value) setCustomRatePerHour('');
                     }}
-                    className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500 text-center"
                   />
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">ل.س/د</span>
                 </div>
@@ -261,10 +267,12 @@ export const LateAttendanceModal: React.FC<LateAttendanceModalProps> = ({
               <div className="relative">
                 <input
                   type="number"
+                  lang="en"
+                  dir="ltr"
                   placeholder="مثال: 50000"
                   value={directAmount}
                   onChange={(e) => setDirectAmount(e.target.value)}
-                  className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-1 focus:ring-amber-500 text-center"
                 />
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">ل.س</span>
               </div>

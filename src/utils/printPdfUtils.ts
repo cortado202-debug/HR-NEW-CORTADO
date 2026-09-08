@@ -158,7 +158,7 @@ export function triggerPrint(
     iframeDoc.open();
     iframeDoc.write(`
       <!DOCTYPE html>
-      <html lang="ar" dir="rtl">
+      <html lang="ar-u-nu-latn" dir="rtl">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -174,6 +174,9 @@ export function triggerPrint(
               print-color-adjust: exact !important;
               color-adjust: exact !important;
               box-shadow: none !important;
+              font-feature-settings: "locl" 0, "numr" 0 !important;
+              -webkit-font-feature-settings: "locl" 0, "numr" 0 !important;
+              font-variant-numeric: tabular-nums lining-nums;
             }
             html, body {
               background: #ffffff !important;
@@ -182,7 +185,9 @@ export function triggerPrint(
               padding: 0 !important;
               width: 100% !important;
               height: auto !important;
-              font-family: inherit;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, 'Cairo', 'Tajawal', sans-serif;
+              font-feature-settings: "locl" 0, "numr" 0 !important;
+              -webkit-font-feature-settings: "locl" 0, "numr" 0 !important;
             }
             .no-print, button, [data-no-print] {
               display: none !important;

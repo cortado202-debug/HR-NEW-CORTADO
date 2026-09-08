@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Employee, AttendanceRecord, SalaryAdvance, CompanySettings, EmployeeMonthlySummary } from '../types';
+import { EnglishMonthPicker } from './ui/EnglishMonthPicker';
 import { 
   formatSYP, 
   getDayOfWeekArabic,
@@ -179,13 +180,10 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
             )}
 
             {/* Month Picker */}
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 shadow-2xs">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="month"
+            <div className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 shadow-2xs">
+              <EnglishMonthPicker
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-transparent font-bold outline-none cursor-pointer text-slate-900 text-xs font-mono"
+                onChange={setSelectedMonth}
               />
             </div>
 

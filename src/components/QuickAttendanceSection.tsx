@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, AttendanceRecord, AttendanceStatus, CompanySettings, WorkShift } from '../types';
+import { EnglishDatePicker } from './ui/EnglishDatePicker';
+import { EnglishTimePicker } from './ui/EnglishTimePicker';
 import { 
   formatSYP, 
   getTodayDateString, 
@@ -595,12 +597,11 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
                 <Calendar className="w-3.5 h-3.5 text-slate-500" />
                 التاريخ
               </label>
-              <input
+              <EnglishDatePicker
                 id="quick-attendance-date"
-                type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-medium rounded-lg px-2.5 py-2 focus:bg-white focus:ring-1 focus:ring-slate-900 outline-none font-mono"
+                onChange={setDate}
+                className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-bold rounded-lg px-2.5 py-2 hover:bg-slate-100"
               />
             </div>
 
@@ -622,12 +623,11 @@ export const QuickAttendanceSection: React.FC<QuickAttendanceSectionProps> = ({
                 </button>
               </label>
               <div className="relative">
-                <input
+                <EnglishTimePicker
                   id="quick-attendance-time"
-                  type="time"
                   value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-bold font-mono rounded-lg px-2.5 py-2 focus:bg-white focus:ring-1 focus:ring-slate-900 outline-none"
+                  onChange={setTime}
+                  className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs font-bold font-mono rounded-lg px-2.5 py-2 hover:bg-slate-100"
                 />
               </div>
             </div>
