@@ -25,6 +25,7 @@ import {
   ClockPlus
 } from 'lucide-react';
 import { downloadPdfFromElement, triggerPrint } from '../utils/printPdfUtils';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 
 interface EmployeePayslipModalProps {
   isOpen: boolean;
@@ -62,6 +63,19 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(defaultEmpId);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
+
+  const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_logo') : null;
+  const cachedName = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_name') : null;
+  const activeLogo = (settings.logoUrl && settings.logoUrl.trim() !== '') 
+    ? settings.logoUrl 
+    : (cachedLogo && cachedLogo.trim() !== '') 
+      ? cachedLogo 
+      : DEFAULT_CORTADO_LOGO;
+  const activeCompanyName = (settings.companyName && settings.companyName.trim() !== '') 
+    ? settings.companyName 
+    : (cachedName && cachedName.trim() !== '') 
+      ? cachedName 
+      : 'شركة كورتادو كافيه';
 
   // Selected employee object
   const currentEmployee = useMemo(() => {
@@ -253,7 +267,7 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
             <div className="flex items-start justify-between pb-3 mb-3 border-b-2 border-slate-900">
               <div className="space-y-0.5">
                 <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                  {settings.companyName || 'المنشأة التجارية'}
+                  {activeCompanyName}
                 </h1>
                 <p className="text-[11px] font-semibold text-slate-600">
                   إدارة الموارد البشرية والشؤون المالية والمحاسبية
@@ -266,8 +280,8 @@ export const EmployeePayslipModal: React.FC<EmployeePayslipModalProps> = ({
               </div>
 
               <div className="flex flex-col items-end">
-                {settings.logoUrl ? (
-                  <img src={settings.logoUrl} alt="Logo" className="h-10 w-10 object-contain border border-slate-200 rounded-lg p-0.5 bg-white" />
+                {activeLogo ? (
+                  <img src={activeLogo} alt={activeCompanyName} className="h-10 w-10 object-contain border border-slate-200 rounded-lg p-0.5 bg-white" />
                 ) : (
                   <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-black text-sm shadow-2xs">
                     <Building2 className="w-4 h-4" />

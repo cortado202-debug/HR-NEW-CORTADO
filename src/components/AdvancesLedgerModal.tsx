@@ -14,6 +14,8 @@ import {
   Download
 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
+import { triggerPrint } from '../utils/printPdfUtils';
 
 interface AdvancesLedgerModalProps {
   isOpen: boolean;
@@ -96,22 +98,59 @@ export const AdvancesLedgerModal: React.FC<AdvancesLedgerModalProps> = ({
     link.remove();
   };
 
+  const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_logo') : null;
+  const cachedName = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_name') : null;
+  const activeLogo = (settings.logoUrl && settings.logoUrl.trim() !== '') 
+    ? settings.logoUrl 
+    : (cachedLogo && cachedLogo.trim() !== '') 
+      ? cachedLogo 
+      : DEFAULT_CORTADO_LOGO;
+  const activeCompanyName = (settings.companyName && settings.companyName.trim() !== '') 
+    ? settings.companyName 
+    : (cachedName && cachedName.trim() !== '') 
+      ? cachedName 
+      : 'شركة كورتادو كافيه';
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto no-print">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
         
+        {/* Printable Header (Visible only when printing) */}
+        <div className="hidden print-only p-6 border-b border-black text-center" dir="rtl">
+          <div className="flex items-center justify-between pb-3 border-b-2 border-slate-900">
+            <div className="text-right">
+              <h1 className="text-2xl font-black text-black">{activeCompanyName}</h1>
+              <p className="text-sm font-semibold text-gray-700">قسم الشؤون المالية والمحاسبة</p>
+              <p className="text-xs text-gray-600">سجل ودفتر السلف المالية للموظفين بالليرة السورية</p>
+            </div>
+            {activeLogo && (
+              <img src={activeLogo} alt={activeCompanyName} className="h-16 w-16 object-contain rounded-lg" />
+            )}
+          </div>
+          <div className="mt-4 p-2 bg-gray-100 border border-gray-300 rounded-lg font-bold text-sm">
+            كشف السلف {selectedMonthFilter ? `لشهر: ${selectedMonthFilter}` : 'الكامل'}
+          </div>
+        </div>
+
         {/* Header */}
         <div className="p-3.5 sm:p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F8FAFC]">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-slate-900 text-white rounded-lg shadow-2xs">
-              <ReceiptText className="w-4 h-4 text-emerald-400" />
-            </div>
+            {activeLogo ? (
+              <img src={activeLogo} alt={activeCompanyName} className="w-10 h-10 object-contain rounded-xl border border-slate-200 p-1 bg-white shadow-2xs" />
+            ) : (
+              <div className="p-2 bg-slate-900 text-white rounded-lg shadow-2xs">
+                <ReceiptText className="w-4 h-4 text-emerald-400" />
+              </div>
+            )}
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                سجل ودفتر السلف المالية بالليرة السورية
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                  سجل ودفتر السلف المالية بالليرة السورية
+                </h2>
+                <span className="text-[11px] font-bold text-slate-500">({activeCompanyName})</span>
+              </div>
               <p className="text-[11px] text-slate-500">
                 أرشيف كامل لكافة السلف المصروفة مع إمكانية البحث والتصفية وطباعة السندات
               </p>
@@ -119,6 +158,13 @@ export const AdvancesLedgerModal: React.FC<AdvancesLedgerModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => triggerPrint()}
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-600" />
+              <span>طباعة الدفتر</span>
+            </button>
             <button
               onClick={handleExportCSV}
               className="flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-bold transition-colors shadow-2xs"

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, CompanySettings, UserRole } from '../types';
 import { authService } from '../services/authService';
 import { syncService } from '../services/syncService';
-import { DEFAULT_CORTADO_LOGO, LOGO_PRESETS } from '../utils/brandLogo';
-import { optimizeImageFile } from '../utils/imageUtils';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { 
   ShieldCheck, 
   Lock, 
@@ -17,14 +18,7 @@ import {
   LogIn, 
   CheckCircle2, 
   QrCode, 
-  ChevronDown,
-  Camera,
-  Sparkles,
-  Upload,
-  X,
-  Check,
-  Building2,
-  RefreshCw
+  ChevronDown
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -63,28 +57,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [liveBranding, setLiveBranding] = useState<{ logoUrl?: string; companyName?: string }>({});
 
-  // Quick Branding Live Manager Modal
-  const [showLogoModal, setShowLogoModal] = useState<boolean>(false);
-  const [modalLogoInput, setModalLogoInput] = useState<string>('');
-  const [modalCompanyName, setModalCompanyName] = useState<string>('');
-  const [modalAdminPin, setModalAdminPin] = useState<string>('123');
-  const [modalSaving, setModalSaving] = useState<boolean>(false);
-  const [modalSuccess, setModalSuccess] = useState<string | null>(null);
-  const [modalError, setModalError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
-    // 1. Fetch immediately on mount & refresh cache
+    // 1. Fetch immediately on mount & refresh cache from server
     const loadBranding = async () => {
       try {
         const res = await fetch(`/api/branding?t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (data && (data.logoUrl || data.companyName)) {
-            setLiveBranding({
-              logoUrl: data.logoUrl || undefined,
-              companyName: data.companyName || undefined,
-            });
+            setLiveBranding((prev) => ({
+              logoUrl: data.logoUrl || prev.logoUrl,
+              companyName: data.companyName || prev.companyName,
+            }));
             if (data.logoUrl) {
               try { localStorage.setItem('cortado_company_logo', data.logoUrl); } catch {}
             }
@@ -130,10 +114,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     };
     window.addEventListener('cortado_branding_updated', handleBrandingEvent);
 
+    // 5. Direct real-time Firebase Firestore listener so anyone opening the site instantly gets the latest company branding
+    let unsubFirestore: (() => void) | null = null;
+    try {
+      const brandingDocRef = doc(db, 'company_app_data', 'company_branding');
+      unsubFirestore = onSnapshot(brandingDocRef, (bSnap) => {
+        if (bSnap.exists()) {
+          const bData = bSnap.data() as any;
+          if (bData && (bData.logoUrl || bData.companyName)) {
+            setLiveBranding({
+              logoUrl: bData.logoUrl || undefined,
+              companyName: bData.companyName || undefined,
+            });
+            if (bData.logoUrl) {
+              try { localStorage.setItem('cortado_company_logo', bData.logoUrl); } catch {}
+            }
+            if (bData.companyName) {
+              try { localStorage.setItem('cortado_company_name', bData.companyName); } catch {}
+            }
+          }
+        }
+      }, () => {});
+    } catch {
+      // ignore
+    }
+
     return () => {
       clearInterval(pollInterval);
       unsubSync();
       window.removeEventListener('cortado_branding_updated', handleBrandingEvent);
+      if (unsubFirestore) unsubFirestore();
     };
   }, []);
 
@@ -206,70 +216,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         ? cachedName
         : 'شركة كورتادو كافيه';
 
-  const handleOpenLogoModal = () => {
-    setModalLogoInput(activeLogo);
-    setModalCompanyName(activeCompanyName);
-    setModalAdminPin('123');
-    setModalError(null);
-    setModalSuccess(null);
-    setShowLogoModal(true);
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const optimized = await optimizeImageFile(file, 320);
-      setModalLogoInput(optimized);
-      setModalError(null);
-    } catch {
-      setModalError('تعذر معالجة الصورة، يرجى اختيار صورة صالحة أخرى');
-    }
-  };
-
-  const handleSaveModalBranding = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setModalError(null);
-    setModalSuccess(null);
-
-    setModalSaving(true);
-    try {
-      const payload = {
-        companyName: modalCompanyName.trim() || activeCompanyName,
-        logoUrl: modalLogoInput || activeLogo,
-      };
-
-      // 1. Instant local state update
-      setLiveBranding(payload);
-      try {
-        localStorage.setItem('cortado_company_logo', payload.logoUrl);
-        localStorage.setItem('cortado_company_name', payload.companyName);
-      } catch {
-        // ignore
-      }
-
-      // 2. Global sync & multi-device broadcast via syncService
-      await syncService.updateBranding(payload);
-
-      // 3. Fallback direct POST to /api/branding
-      await fetch('/api/branding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      setModalSuccess('✅ تم تحديث الشعار والاسم ونشره فورياً لكافة الأجهزة وشاشات تسجيل الدخول!');
-      setTimeout(() => {
-        setShowLogoModal(false);
-        setModalSuccess(null);
-      }, 1200);
-    } catch {
-      setModalError('حدث خطأ أثناء نشر الشعار، يرجى المحاولة ثانية');
-    } finally {
-      setModalSaving(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#F1F5F9] flex flex-col justify-center items-center p-3 sm:p-6 font-sans antialiased text-slate-900 selection:bg-slate-900 selection:text-white" dir="rtl">
       
@@ -283,33 +229,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         
         {/* Header with Logo and Brand */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="relative group">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl mb-3 shadow-md border-2 border-emerald-500/40 bg-white p-2 flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:scale-105">
-              <img 
-                key={activeLogo}
-                src={activeLogo} 
-                alt={activeCompanyName} 
-                className="w-full h-full object-contain rounded-2xl drop-shadow-xs transition-all duration-300"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  const target = e.currentTarget;
-                  if (target.src !== DEFAULT_CORTADO_LOGO) {
-                    target.src = DEFAULT_CORTADO_LOGO;
-                  }
-                }}
-              />
-            </div>
-
-            {/* Quick Logo Edit Button on the logo badge itself */}
-            <button
-              type="button"
-              id="btn-quick-edit-logo"
-              onClick={handleOpenLogoModal}
-              title="تغيير وتحديث الشعار فورياً لكافة الشاشات"
-              className="absolute -bottom-1 -left-1 p-2 bg-slate-900 hover:bg-emerald-600 text-white rounded-full shadow-lg border-2 border-white transition-all transform hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center z-10"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
+          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl mb-3 shadow-md border-2 border-emerald-500/40 bg-white p-2 flex items-center justify-center overflow-hidden transition-all duration-300">
+            <img 
+              key={activeLogo}
+              src={activeLogo} 
+              alt={activeCompanyName} 
+              className="w-full h-full object-contain rounded-2xl drop-shadow-xs transition-all duration-300"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (target.src !== DEFAULT_CORTADO_LOGO) {
+                  target.src = DEFAULT_CORTADO_LOGO;
+                }
+              }}
+            />
           </div>
           
           <h1 key={activeCompanyName} className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight transition-all duration-300">
@@ -319,17 +252,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>بوابة تسجيل الدخول الموحدة للمنشأة</span>
           </div>
-
-          {/* Direct Quick Branding Button for Instant Propagation */}
-          <button
-            type="button"
-            id="btn-open-branding-modal"
-            onClick={handleOpenLogoModal}
-            className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 rounded-full text-[11px] font-bold transition-all cursor-pointer shadow-xs active:scale-95"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            <span>تحديث شعار واسم المنشأة فورياً لجميع الأجهزة</span>
-          </button>
         </div>
 
         {/* Global Error or Success Alert */}
@@ -813,172 +735,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         </div>
 
       </motion.div>
-
-      {/* Instant Branding Manager Modal */}
-      <AnimatePresence>
-        {showLogoModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs" dir="rtl">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 sm:p-6 overflow-hidden max-h-[90vh] flex flex-col"
-            >
-              {/* Modal Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base sm:text-lg font-black text-slate-900">تحديث شعار واسم المنشأة فورياً</h3>
-                    <p className="text-xs text-slate-500">يتغير مباشرة على كافة شاشات وأجهزة الموظفين والمشرفين</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  id="btn-close-logo-modal"
-                  onClick={() => setShowLogoModal(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <form onSubmit={handleSaveModalBranding} className="space-y-4 pt-4 overflow-y-auto pr-1">
-                {modalSuccess && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <span>{modalSuccess}</span>
-                  </div>
-                )}
-
-                {modalError && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-bold flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                    <span>{modalError}</span>
-                  </div>
-                )}
-
-                {/* Current & Preview Logo */}
-                <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-200/80">
-                  <div className="w-20 h-20 rounded-2xl bg-white border border-slate-200 p-2 flex items-center justify-center flex-shrink-0 shadow-xs overflow-hidden">
-                    <img
-                      src={modalLogoInput || activeLogo}
-                      alt="معاينة الشعار"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                  <div className="flex-1 text-right">
-                    <div className="text-xs font-bold text-slate-800 mb-1">معاينة الشعار المباشر</div>
-                    <p className="text-[11px] text-slate-500 mb-2">
-                      يمكنك رفع صورة من جهازك أو اختيار أحد التصاميم المعتمدة أدناه.
-                    </p>
-                    <button
-                      type="button"
-                      id="btn-upload-logo-file"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs active:scale-95"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>رفع صورة الشعار من الجهاز</span>
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
-                  </div>
-                </div>
-
-                {/* Ready Presets Gallery */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-2">
-                    أو اختر شعاراً معتمداً فورياً لكورتادو كافيه:
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {LOGO_PRESETS.map((preset) => {
-                      const isSelected = modalLogoInput === preset.url;
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => {
-                            setModalLogoInput(preset.url);
-                            setModalError(null);
-                          }}
-                          className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center gap-1.5 cursor-pointer ${
-                            isSelected
-                              ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/30'
-                              : 'border-slate-200 bg-white hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
-                            <img src={preset.url} alt={preset.name} className="w-full h-full object-contain" />
-                          </div>
-                          <span className="text-[10px] font-bold text-slate-700 truncate w-full">
-                            {preset.name}
-                          </span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Company Name Field */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    اسم المنشأة / الشركة (يظهر في رأس كل الشاشات):
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={modalCompanyName}
-                      onChange={(e) => setModalCompanyName(e.target.value)}
-                      placeholder="مثال: شركة كورتادو كافيه"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all pl-9"
-                    />
-                    <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                  </div>
-                </div>
-
-                {/* Save & Broadcast Button */}
-                <div className="pt-2 flex items-center gap-2">
-                  <button
-                    type="submit"
-                    disabled={modalSaving}
-                    id="btn-save-modal-branding"
-                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-extrabold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    {modalSaving ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>جاري الحفظ والتعميم...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 text-emerald-200" />
-                        <span>حفظ وتعميم الشعار فورياً لكافة الأجهزة</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowLogoModal(false)}
-                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
     </div>
   );

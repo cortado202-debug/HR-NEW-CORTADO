@@ -3,6 +3,7 @@ import { SalaryAdvance, CompanySettings } from '../types';
 import { formatSYP, formatArabicDate } from '../utils/formatters';
 import { X, Printer, Receipt, Building2, Download, CheckCircle2 } from 'lucide-react';
 import { downloadPdfFromElement, triggerPrint } from '../utils/printPdfUtils';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 
 interface AdvanceReceiptModalProps {
   isOpen: boolean;
@@ -20,6 +21,19 @@ export const AdvanceReceiptModal: React.FC<AdvanceReceiptModalProps> = ({
   const printableRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+
+  const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_logo') : null;
+  const cachedName = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_name') : null;
+  const activeLogo = (settings.logoUrl && settings.logoUrl.trim() !== '') 
+    ? settings.logoUrl 
+    : (cachedLogo && cachedLogo.trim() !== '') 
+      ? cachedLogo 
+      : DEFAULT_CORTADO_LOGO;
+  const activeCompanyName = (settings.companyName && settings.companyName.trim() !== '') 
+    ? settings.companyName 
+    : (cachedName && cachedName.trim() !== '') 
+      ? cachedName 
+      : 'شركة كورتادو كافيه';
 
   if (!isOpen || !advance) return null;
 
@@ -112,11 +126,11 @@ export const AdvanceReceiptModal: React.FC<AdvanceReceiptModalProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b-2 border-slate-900">
             <div>
-              <h2 className="text-base sm:text-lg font-extrabold text-slate-900">{settings.companyName}</h2>
+              <h2 className="text-base sm:text-lg font-extrabold text-slate-900">{activeCompanyName}</h2>
               <p className="text-[11px] text-slate-600 mt-0.5">قسم الشؤون المالية والمحاسبة</p>
             </div>
-            {settings.logoUrl ? (
-              <img src={settings.logoUrl} alt="Logo" className="h-10 w-10 object-contain" />
+            {activeLogo ? (
+              <img src={activeLogo} alt={activeCompanyName} className="h-10 w-10 object-contain rounded-lg" />
             ) : (
               <div className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-bold">
                 <Building2 className="w-4 h-4" />

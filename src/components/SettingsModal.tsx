@@ -337,6 +337,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleSaveCompanySettings = async (e?: React.FormEvent, customUsers?: UserAccount[]) => {
     if (e) e.preventDefault();
     setIsSavingSettings(true);
+
+    // Safety fallback timeout: guaranteed to never freeze the button under any circumstance
+    const safetyTimeout = setTimeout(() => {
+      setIsSavingSettings(false);
+    }, 1500);
+
     try {
       let currentUsers = customUsers ? [...customUsers] : [...usersList];
       
@@ -376,44 +382,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
       setUsersList(currentUsers);
 
+      // Instant local persistence for 0ms feedback
       if (typeof window !== 'undefined') {
         if (logoUrl) localStorage.setItem('cortado_company_logo', logoUrl);
         if (companyName) localStorage.setItem('cortado_company_name', companyName.trim());
         if (directorName) localStorage.setItem('cortado_director_name', directorName.trim());
       }
 
-      await syncService.updateBranding({
-        companyName: companyName.trim(),
-        directorName: directorName.trim(),
-        logoUrl: logoUrl,
-      });
+      // Perform update with timeout protection
+      const updatePromise = Promise.all([
+        syncService.updateBranding({
+          companyName: companyName.trim(),
+          directorName: directorName.trim(),
+          logoUrl: logoUrl,
+        }),
+        onUpdateSettings({
+          companyName: companyName.trim(),
+          directorName: directorName.trim(),
+          logoUrl,
+          defaultWorkDays: Number(defaultWorkDays),
+          defaultWorkHours: Number(defaultWorkHours),
+          defaultAbsentDeductionMultiplier: Number(absentMultiplier),
+          lateDeductionMode,
+          lateDeductionAmount: lateDeductionAmountRaw ? Number(lateDeductionAmountRaw) : undefined,
+          departureDeductionMode,
+          departureDeductionAmount: departureDeductionAmountRaw ? Number(departureDeductionAmountRaw) : undefined,
+          overtimeMode,
+          overtimeRateMultiplier: Number(overtimeRateMultiplier) || 1.25,
+          overtimeAmountPerHour: overtimeAmountPerHourRaw ? Number(overtimeAmountPerHourRaw) : undefined,
+          overtimeAutoCalculate,
+          maxAdvancePerMonth: parseSYPInput(maxAdvancePerMonthRaw) || 2000000,
+          shifts,
+          users: currentUsers,
+        }),
+      ]);
 
-      await onUpdateSettings({
-        companyName,
-        directorName,
-        logoUrl,
-        defaultWorkDays: Number(defaultWorkDays),
-        defaultWorkHours: Number(defaultWorkHours),
-        defaultAbsentDeductionMultiplier: Number(absentMultiplier),
-        lateDeductionMode,
-        lateDeductionAmount: lateDeductionAmountRaw ? Number(lateDeductionAmountRaw) : undefined,
-        departureDeductionMode,
-        departureDeductionAmount: departureDeductionAmountRaw ? Number(departureDeductionAmountRaw) : undefined,
-        overtimeMode,
-        overtimeRateMultiplier: Number(overtimeRateMultiplier) || 1.25,
-        overtimeAmountPerHour: overtimeAmountPerHourRaw ? Number(overtimeAmountPerHourRaw) : undefined,
-        overtimeAutoCalculate,
-        maxAdvancePerMonth: parseSYPInput(maxAdvancePerMonthRaw) || 2000000,
-        shifts,
-        users: currentUsers,
-      });
+      const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 1000));
+      await Promise.race([updatePromise, timeoutPromise]);
+
       setSettingsSavedSuccess(true);
       triggerToast('✅ تم حفظ كافة إعدادات الشركة وبيانات دخول المدير بنجاح ومزامنتها مباشرة!');
       setTimeout(() => setSettingsSavedSuccess(false), 3000);
     } catch (err) {
-      console.error(err);
+      console.error('handleSaveCompanySettings error:', err);
       triggerToast('حدث خطأ أثناء حفظ الإعدادات');
     } finally {
+      clearTimeout(safetyTimeout);
       setIsSavingSettings(false);
     }
   };

@@ -4,6 +4,7 @@ import { EnglishMonthPicker } from './ui/EnglishMonthPicker';
 import { formatSYP, formatArabicMonth, getTodayDateString } from '../utils/formatters';
 import { computeEmployeeMonthlySummary } from '../utils/payrollMath';
 import { triggerPrint } from '../utils/printPdfUtils';
+import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 import { 
   X, 
   Printer, 
@@ -45,6 +46,19 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
   const activeEmployees = useMemo(() => {
     return employees.filter((e) => e.active);
   }, [employees]);
+
+  const cachedLogo = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_logo') : null;
+  const cachedName = typeof window !== 'undefined' ? localStorage.getItem('cortado_company_name') : null;
+  const activeLogo = (settings.logoUrl && settings.logoUrl.trim() !== '') 
+    ? settings.logoUrl 
+    : (cachedLogo && cachedLogo.trim() !== '') 
+      ? cachedLogo 
+      : DEFAULT_CORTADO_LOGO;
+  const activeCompanyName = (settings.companyName && settings.companyName.trim() !== '') 
+    ? settings.companyName 
+    : (cachedName && cachedName.trim() !== '') 
+      ? cachedName 
+      : 'شركة كورتادو كافيه';
 
   // Compute summary for all employees
   const summaries: EmployeeMonthlySummary[] = useMemo(() => {
@@ -212,12 +226,12 @@ export const MonthlyPayrollModal: React.FC<MonthlyPayrollModalProps> = ({
           <div className="hidden print-only p-6 border-b border-black text-center">
           <div className="flex items-center justify-between">
             <div className="text-right">
-              <h1 className="text-2xl font-bold text-black">{settings.companyName}</h1>
-              <p className="text-sm text-gray-700">إدارة الموارد البشرية والمالية</p>
+              <h1 className="text-2xl font-black text-black">{activeCompanyName}</h1>
+              <p className="text-sm font-semibold text-gray-700">إدارة الموارد البشرية والمالية</p>
               <p className="text-xs text-gray-600">كشف مسيرات الرواتب والسلف الشهرية بالليرة السورية</p>
             </div>
-            {settings.logoUrl && (
-              <img src={settings.logoUrl} alt="Logo" className="h-16 w-16 object-contain" />
+            {activeLogo && (
+              <img src={activeLogo} alt={activeCompanyName} className="h-16 w-16 object-contain rounded-lg" />
             )}
           </div>
           <div className="mt-4 p-2 bg-gray-100 border border-gray-300 rounded font-bold text-sm">

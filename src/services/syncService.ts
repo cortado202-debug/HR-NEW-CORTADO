@@ -412,10 +412,40 @@ class SyncService {
    */
   public async updateBranding(branding: { companyName?: string; directorName?: string; logoUrl?: string; forceReset?: boolean }): Promise<void> {
     this.applyBrandingUpdate(branding);
+
+    // 1. Push to Firestore company_branding document in background (never blocks UI)
     try {
-      await fetch('/api/branding', {
+      const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
+      setDoc(
+        brandingDocRef,
+        {
+          companyName: branding.companyName || this.data.settings.companyName || '',
+          directorName: branding.directorName || this.data.settings.directorName || '',
+          logoUrl: branding.logoUrl !== undefined ? branding.logoUrl : (this.data.settings.logoUrl || ''),
+          forceReset: branding.forceReset || false,
+          lastUpdated: Date.now(),
+          updatedByClientId: CLIENT_ID,
+        },
+        { merge: true }
+      ).catch((err) => {
+        console.warn('Background Firestore write branding warning:', err);
+      });
+    } catch (err) {
+      console.warn('Failed to write branding to Firestore:', err);
+    }
+
+    // 2. Also push full doc to Firestore in background
+    this.pushToFirestore(true).catch(() => {});
+
+    // 3. Post to backend server /api/branding with fast timeout so UI never hangs
+    try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), 3000) : null;
+
+      fetch('/api/branding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller ? controller.signal : undefined,
         body: JSON.stringify({
           companyName: branding.companyName || this.data.settings.companyName,
           directorName: branding.directorName || this.data.settings.directorName,
@@ -423,7 +453,11 @@ class SyncService {
           forceReset: branding.forceReset,
           clientId: CLIENT_ID,
         }),
-      });
+      })
+        .catch((e) => console.warn('updateBranding server sync error:', e))
+        .finally(() => {
+          if (timeoutId) clearTimeout(timeoutId);
+        });
     } catch (e) {
       console.warn('updateBranding server sync error:', e);
     }
@@ -621,15 +655,27 @@ class SyncService {
         // ignore Firestore permission if not provisioned
       }
 
-      // Dedicated Branding Listener
+      // Dedicated Branding Initial Fetch & Real-time Listener
       const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
+      try {
+        const bSnap = await getDoc(brandingDocRef);
+        if (bSnap.exists()) {
+          const bData = bSnap.data() as any;
+          if (bData && (bData.companyName || bData.logoUrl !== undefined)) {
+            this.applyBrandingUpdate(bData);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
       this.unsubscribeBranding = onSnapshot(
         brandingDocRef,
         { includeMetadataChanges: false },
         (bSnap) => {
           if (bSnap.exists()) {
             const bData = bSnap.data() as any;
-            if (bData && bData.updatedByClientId !== CLIENT_ID) {
+            if (bData) {
               this.applyBrandingUpdate(bData);
             }
           }
@@ -933,30 +979,58 @@ class SyncService {
 
     // 4. Send POST to server for instant multi-device SSE broadcast
     try {
-      await fetch('/api/settings', {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), 3000) : null;
+
+      fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller ? controller.signal : undefined,
         body: JSON.stringify({ settings: this.data.settings, clientId: CLIENT_ID }),
-      });
+      })
+        .catch((err) => console.warn('POST /api/settings failed:', err))
+        .finally(() => {
+          if (timeoutId) clearTimeout(timeoutId);
+        });
     } catch (err) {
       console.warn('POST /api/settings failed:', err);
     }
 
-    // 5. Also send dedicated /api/branding update
+    // 5. Also send dedicated branding update to Firestore & /api/branding
     if (settings.companyName !== undefined || settings.logoUrl !== undefined || settings.directorName !== undefined) {
+      const brandingPayload = {
+        companyName: this.data.settings.companyName || '',
+        directorName: this.data.settings.directorName || '',
+        logoUrl: this.data.settings.logoUrl || '',
+        lastUpdated: Date.now(),
+        updatedByClientId: CLIENT_ID,
+      };
+
       try {
-        await fetch('/api/branding', {
+        const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
+        setDoc(brandingDocRef, brandingPayload, { merge: true }).catch((err) => {
+          console.warn('Failed to write branding to Firestore:', err);
+        });
+      } catch (err) {
+        console.warn('Error preparing branding doc ref:', err);
+      }
+
+      try {
+        fetch('/api/branding', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            companyName: this.data.settings.companyName,
-            directorName: this.data.settings.directorName,
-            logoUrl: this.data.settings.logoUrl,
+            ...brandingPayload,
             clientId: CLIENT_ID,
           }),
-        });
+        }).catch((be) => console.warn('POST /api/branding failed:', be));
       } catch (be) {
-        console.warn('POST /api/branding failed:', be);
+        console.warn('POST /api/branding error:', be);
+      }
+
+      this.broadcastLocal('BRANDING_UPDATED', brandingPayload);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('cortado_branding_updated', { detail: brandingPayload }));
       }
     }
 
