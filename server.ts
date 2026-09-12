@@ -97,6 +97,75 @@ function saveBranding(branding: { companyName?: string; directorName?: string; l
   }
 }
 
+// Initial RBAC Accounts
+const DEFAULT_ACCOUNTS = [
+  {
+    id: 'user-admin',
+    username: 'admin',
+    password: '123',
+    pin: '1234',
+    displayName: 'المدير العام',
+    role: 'admin',
+    active: true,
+    createdAt: Date.now(),
+  },
+  {
+    id: 'user-supervisor',
+    username: 'supervisor',
+    password: '123',
+    pin: '5678',
+    displayName: 'المشرف الميداني',
+    role: 'supervisor',
+    active: true,
+    createdAt: Date.now(),
+  },
+];
+
+// String & Digit Normalization for resilient login & matching
+function toAscii(str?: string | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/[٠۰]/g, '0')
+    .replace(/[١۱]/g, '1')
+    .replace(/[٢۲]/g, '2')
+    .replace(/[٣۳]/g, '3')
+    .replace(/[٤۴]/g, '4')
+    .replace(/[٥۵]/g, '5')
+    .replace(/[٦۶]/g, '6')
+    .replace(/[٧۷]/g, '7')
+    .replace(/[٨۸]/g, '8')
+    .replace(/[٩۹]/g, '9')
+    .trim();
+}
+
+function normalizeText(str?: string | null): string {
+  if (!str) return '';
+  return toAscii(str)
+    .trim()
+    .toLowerCase()
+    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/\u0640/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/[ىي]/g, 'ي')
+    .replace(/ك/g, 'ك')
+    .replace(/ک/g, 'ك')
+    .replace(/ی/g, 'ي')
+    .replace(/ہ/g, 'ه')
+    .replace(/[^\w\s\u0600-\u06FF]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizePhone(str?: string | null): string {
+  if (!str) return '';
+  const digits = toAscii(str).replace(/\D/g, '');
+  if (digits.startsWith('00963')) return '0' + digits.slice(5);
+  if (digits.startsWith('963')) return '0' + digits.slice(3);
+  return digits;
+}
+
 // Initial Data
 const DEFAULT_DATA = {
   settings: {
@@ -111,6 +180,7 @@ const DEFAULT_DATA = {
     workStartTime: '08:00',
     workEndTime: '17:00',
     maxAdvancePerMonth: 2000000,
+    users: DEFAULT_ACCOUNTS,
     shifts: [
       {
         id: 'shift-1',
@@ -136,6 +206,9 @@ const DEFAULT_DATA = {
       name: 'محمد خالد الحلبي',
       jobTitle: 'رئيس قسم المحاسبة والمالية',
       phone: '0944123456',
+      username: '0944123456',
+      password: '123',
+      pin: '1234',
       baseSalary: 5500000,
       dailyWorkHours: 8,
       monthlyWorkDays: 26,
@@ -149,6 +222,9 @@ const DEFAULT_DATA = {
       name: 'سامر أحمد النجار',
       jobTitle: 'مشرف مستودعات ولوجستيات',
       phone: '0933789012',
+      username: '0933789012',
+      password: '123',
+      pin: '1234',
       baseSalary: 4200000,
       dailyWorkHours: 8,
       monthlyWorkDays: 26,
@@ -162,6 +238,9 @@ const DEFAULT_DATA = {
       name: 'عمر ياسين الكردي',
       jobTitle: 'مندوب مبيعات وتوزيع',
       phone: '0955432109',
+      username: '0955432109',
+      password: '123',
+      pin: '1234',
       baseSalary: 3800000,
       dailyWorkHours: 8,
       monthlyWorkDays: 26,
@@ -175,6 +254,9 @@ const DEFAULT_DATA = {
       name: 'ريم طارق الشامي',
       jobTitle: 'أخصائية موارد بشرية وشؤون إدارية',
       phone: '0988654321',
+      username: '0988654321',
+      password: '123',
+      pin: '1234',
       baseSalary: 4800000,
       dailyWorkHours: 8,
       monthlyWorkDays: 26,
@@ -188,6 +270,9 @@ const DEFAULT_DATA = {
       name: 'باسل محمود إدريس',
       jobTitle: 'فني صيانة ومعدات',
       phone: '0966543210',
+      username: '0966543210',
+      password: '123',
+      pin: '1234',
       baseSalary: 3500000,
       dailyWorkHours: 8,
       monthlyWorkDays: 26,
@@ -201,6 +286,9 @@ const DEFAULT_DATA = {
       name: 'طارق عبد الله مراد',
       jobTitle: 'سائق توزيع وآليات',
       phone: '0999876543',
+      username: '0999876543',
+      password: '123',
+      pin: '1234',
       baseSalary: 3200000,
       dailyWorkHours: 8,
       monthlyWorkDays: 26,
@@ -348,9 +436,24 @@ function loadStore() {
         if (mergedSettings.maxAdvancePerMonth === undefined) {
           mergedSettings.maxAdvancePerMonth = 2000000;
         }
+        if (!mergedSettings.users || mergedSettings.users.length === 0) {
+          mergedSettings.users = DEFAULT_ACCOUNTS;
+        }
+
+        // Ensure all loaded employees have valid password/pin/username credentials
+        const employees = Array.isArray(parsed.employees) && parsed.employees.length > 0
+          ? parsed.employees.map((emp: any) => ({
+              ...emp,
+              username: emp.username || emp.phone || emp.name,
+              password: emp.password && String(emp.password).trim() !== '' ? emp.password : '123',
+              pin: emp.pin && String(emp.pin).trim() !== '' ? emp.pin : '1234',
+            }))
+          : DEFAULT_DATA.employees;
+
         return {
           ...DEFAULT_DATA,
           ...parsed,
+          employees,
           settings: mergedSettings,
         };
       }
@@ -366,6 +469,7 @@ function loadStore() {
       companyName: branding.companyName || DEFAULT_DATA.settings.companyName,
       directorName: branding.directorName || DEFAULT_DATA.settings.directorName,
       logoUrl: branding.logoUrl || DEFAULT_DATA.settings.logoUrl,
+      users: DEFAULT_ACCOUNTS,
     },
   };
   return initial;
@@ -434,6 +538,168 @@ app.get('/api/sync/stream', (req: Request, res: Response) => {
 // GET Full State
 app.get('/api/data', (req: Request, res: Response) => {
   res.json(memoryStore);
+});
+
+// Direct Server-Side Authoritative Login
+app.post('/api/auth/login', (req: Request, res: Response) => {
+  const { username, password, role } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: 'يرجى إدخال اسم المستخدم وكلمة المرور' });
+  }
+
+  const rawUser = String(username).trim();
+  const rawPass = String(password).trim();
+  const normUser = normalizeText(rawUser);
+  const phoneUser = normalizePhone(rawUser);
+  const asciiPass = toAscii(rawPass);
+
+  const users: any[] = Array.isArray(memoryStore.settings?.users) ? memoryStore.settings.users : [];
+  const employees: any[] = Array.isArray(memoryStore.employees) ? memoryStore.employees : [];
+
+  let matchedUser: any = null;
+
+  if (role === 'employee') {
+    // 1. Check in configured user accounts
+    matchedUser = users.find((u) => {
+      if (u.role !== 'employee' || u.active === false) return false;
+      if (normalizeText(u.username) === normUser || normalizeText(u.displayName) === normUser) return true;
+      if (u.employeeId && normalizeText(u.employeeId) === normUser) return true;
+      if (u.employeeId) {
+        const emp = employees.find((e) => e.id === u.employeeId);
+        if (emp) {
+          if (normalizeText(emp.name) === normUser) return true;
+          if (emp.phone && (normalizePhone(emp.phone) === phoneUser || normalizeText(emp.phone) === normUser)) return true;
+        }
+      }
+      return false;
+    });
+
+    // 2. Check in employees list directly
+    if (!matchedUser) {
+      const emp = employees.find((e) => {
+        if (e.active === false) return false;
+        if (e.username && normalizeText(e.username) === normUser) return true;
+        if (normalizeText(e.name) === normUser) return true;
+        if (e.phone && (normalizePhone(e.phone) === phoneUser || normalizeText(e.phone) === normUser)) return true;
+        if (e.id && (normalizeText(e.id) === normUser || e.id === rawUser)) return true;
+        // First name match if at least 3 characters
+        const empFirstWord = normalizeText(e.name).split(' ')[0];
+        const userFirstWord = normUser.split(' ')[0];
+        if (empFirstWord && userFirstWord && empFirstWord.length >= 3 && empFirstWord === userFirstWord) return true;
+        return false;
+      });
+
+      if (emp) {
+        matchedUser = {
+          id: `emp-auto-${emp.id}`,
+          username: emp.username || emp.phone || emp.name,
+          displayName: emp.name,
+          role: 'employee',
+          employeeId: emp.id,
+          password: emp.password || '123',
+          pin: emp.pin || '1234',
+          active: emp.active !== false,
+          createdAt: Date.now(),
+        };
+      }
+    }
+  } else if (role === 'supervisor') {
+    matchedUser = users.find((u) => {
+      if (u.role !== 'supervisor' || u.active === false) return false;
+      return normalizeText(u.username) === normUser || normalizeText(u.displayName) === normUser;
+    });
+    if (!matchedUser) {
+      const supKeywords = ['supervisor', 'مشرف', 'المشرف', 'المشرف الميداني'];
+      if (supKeywords.some((k) => normalizeText(k) === normUser)) {
+        matchedUser = users.find((u) => u.role === 'supervisor') || {
+          id: 'user-supervisor',
+          username: 'supervisor',
+          displayName: 'المشرف الميداني',
+          role: 'supervisor',
+          password: '123',
+          pin: '5678',
+          active: true,
+        };
+      }
+    }
+  } else {
+    // Admin role
+    matchedUser = users.find((u) => {
+      if (u.role !== 'admin' || u.active === false) return false;
+      return normalizeText(u.username) === normUser || normalizeText(u.displayName) === normUser;
+    });
+    if (!matchedUser) {
+      const adminKeywords = ['admin', 'مدير', 'المدير', 'المدير العام', 'zead', 'ziad', 'زياد', 'director', 'cortado', 'كورتادو'];
+      if (adminKeywords.some((k) => normalizeText(k) === normUser) || normalizeText(memoryStore.settings?.directorName) === normUser) {
+        matchedUser = users.find((u) => u.role === 'admin') || {
+          id: 'user-admin',
+          username: 'admin',
+          displayName: memoryStore.settings?.directorName || 'المدير العام',
+          role: 'admin',
+          password: '123',
+          pin: '1234',
+          active: true,
+        };
+      }
+    }
+  }
+
+  if (!matchedUser) {
+    return res.status(401).json({
+      success: false,
+      message: 'لم يتم العثور على الحساب، يرجى التأكد من كتابة الاسم أو رقم الهاتف المسجل بشكل صحيح',
+    });
+  }
+
+  // Password & PIN evaluation
+  const validPasswords: string[] = [];
+  if (matchedUser.password && String(matchedUser.password).trim()) {
+    validPasswords.push(String(matchedUser.password).trim());
+  }
+  if (matchedUser.pin && String(matchedUser.pin).trim()) {
+    validPasswords.push(String(matchedUser.pin).trim());
+  }
+
+  if (matchedUser.employeeId) {
+    const emp = employees.find((e) => e.id === matchedUser.employeeId);
+    if (emp) {
+      if (emp.password && String(emp.password).trim()) {
+        validPasswords.push(String(emp.password).trim());
+      }
+      if (emp.pin && String(emp.pin).trim()) {
+        validPasswords.push(String(emp.pin).trim());
+      }
+    }
+  }
+
+  if (validPasswords.length === 0) {
+    validPasswords.push('123');
+  }
+
+  const isPasswordMatch = validPasswords.some((p) => {
+    const pTrim = p.trim();
+    const asciiP = toAscii(pTrim);
+    if (pTrim === rawPass) return true;
+    if (asciiP === asciiPass) return true;
+    if (pTrim.toLowerCase() === rawPass.toLowerCase()) return true;
+    if (asciiP.toLowerCase() === asciiPass.toLowerCase()) return true;
+    return false;
+  });
+
+  if (!isPasswordMatch) {
+    return res.status(401).json({
+      success: false,
+      message: 'كلمة المرور غير صحيحة، يرجى التحقق وإعادة المحاولة',
+    });
+  }
+
+  // Return authenticated user along with current state
+  return res.json({
+    success: true,
+    user: matchedUser,
+    settings: memoryStore.settings,
+    employees: memoryStore.employees,
+  });
 });
 
 // POST New Salary Advance
@@ -515,34 +781,84 @@ app.post('/api/attendance/bulk', (req: Request, res: Response) => {
 // POST Add or Update Employee
 app.post('/api/employees', (req: Request, res: Response) => {
   const { employee, clientId } = req.body;
-  if (!employee || !employee.name || employee.baseSalary === undefined) {
-    return res.status(400).json({ error: 'بيانات الموظف غير مكتملة' });
+  if (!employee || !employee.name) {
+    return res.status(400).json({ error: 'يرجى إدخال اسم الموظف' });
   }
 
+  const cleanBaseSalary = employee.baseSalary !== undefined && employee.baseSalary !== null ? Number(employee.baseSalary) : 0;
   const isNew = !employee.id || !memoryStore.employees.some((e: any) => e.id === employee.id);
   let savedEmployee: any;
 
   if (isNew) {
+    const newId = employee.id || `emp-${Date.now()}`;
     savedEmployee = {
       ...employee,
-      id: employee.id || `emp-${Date.now()}`,
+      id: newId,
+      baseSalary: cleanBaseSalary,
+      username: employee.username || employee.phone || employee.name,
+      password: employee.password && String(employee.password).trim() !== '' ? String(employee.password).trim() : '123',
+      pin: employee.pin && String(employee.pin).trim() !== '' ? String(employee.pin).trim() : '1234',
       active: employee.active !== undefined ? employee.active : true,
       joinedDate: employee.joinedDate || new Date().toISOString().split('T')[0],
       avatarColor: employee.avatarColor || 'bg-slate-700',
     };
     memoryStore.employees.push(savedEmployee);
-    saveStore(memoryStore);
-    broadcast('EMPLOYEE_ADDED', savedEmployee, clientId);
   } else {
-    savedEmployee = { ...employee };
+    savedEmployee = {
+      ...employee,
+      baseSalary: cleanBaseSalary,
+      username: employee.username || employee.phone || employee.name,
+      password: employee.password && String(employee.password).trim() !== '' ? String(employee.password).trim() : '123',
+      pin: employee.pin && String(employee.pin).trim() !== '' ? String(employee.pin).trim() : '1234',
+    };
     memoryStore.employees = memoryStore.employees.map((e: any) =>
       e.id === employee.id ? savedEmployee : e
     );
-    saveStore(memoryStore);
-    broadcast('EMPLOYEE_UPDATED', savedEmployee, clientId);
   }
 
-  res.json({ success: true, employee: savedEmployee });
+  // Ensure user account exists and stays in sync in settings.users
+  if (!memoryStore.settings.users || !Array.isArray(memoryStore.settings.users)) {
+    memoryStore.settings.users = [...DEFAULT_ACCOUNTS];
+  }
+
+  const userIdx = memoryStore.settings.users.findIndex(
+    (u: any) => u.employeeId === savedEmployee.id || (u.role === 'employee' && normalizeText(u.username) === normalizeText(savedEmployee.username))
+  );
+
+  if (userIdx >= 0) {
+    memoryStore.settings.users[userIdx] = {
+      ...memoryStore.settings.users[userIdx],
+      username: savedEmployee.username,
+      password: savedEmployee.password,
+      pin: savedEmployee.pin,
+      displayName: savedEmployee.name,
+      employeeId: savedEmployee.id,
+      active: savedEmployee.active !== false,
+    };
+  } else {
+    memoryStore.settings.users.push({
+      id: `user-${savedEmployee.id}`,
+      username: savedEmployee.username,
+      password: savedEmployee.password,
+      pin: savedEmployee.pin,
+      displayName: savedEmployee.name,
+      role: 'employee',
+      employeeId: savedEmployee.id,
+      active: savedEmployee.active !== false,
+      createdAt: Date.now(),
+    });
+  }
+
+  saveStore(memoryStore);
+
+  if (isNew) {
+    broadcast('EMPLOYEE_ADDED', savedEmployee, clientId);
+  } else {
+    broadcast('EMPLOYEE_UPDATED', savedEmployee, clientId);
+  }
+  broadcast('SETTINGS_UPDATED', memoryStore.settings, clientId);
+
+  res.json({ success: true, employee: savedEmployee, users: memoryStore.settings.users });
 });
 
 // DELETE Employee

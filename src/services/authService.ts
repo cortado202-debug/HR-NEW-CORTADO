@@ -8,7 +8,7 @@ type AuthListener = (user: UserAccount | null) => void;
 
 function toAsciiDigits(str?: string | null): string {
   if (!str) return '';
-  return str
+  return String(str)
     .replace(/[٠۰]/g, '0')
     .replace(/[١۱]/g, '1')
     .replace(/[٢۲]/g, '2')
@@ -24,21 +24,27 @@ function toAsciiDigits(str?: string | null): string {
 
 function normalizePhone(str?: string | null): string {
   if (!str) return '';
-  const ascii = toAsciiDigits(str);
-  const digitsOnly = ascii.replace(/\D/g, '');
-  if (digitsOnly.startsWith('00963')) return '0' + digitsOnly.slice(5);
-  if (digitsOnly.startsWith('963')) return '0' + digitsOnly.slice(3);
-  return digitsOnly;
+  const digits = toAsciiDigits(str).replace(/\D/g, '');
+  if (digits.startsWith('00963')) return '0' + digits.slice(5);
+  if (digits.startsWith('963')) return '0' + digits.slice(3);
+  return digits;
 }
 
 function normalizeString(str?: string | null): string {
   if (!str) return '';
-  return str
+  return toAsciiDigits(str)
     .trim()
     .toLowerCase()
-    .replace(/[أإآ]/g, 'ا')
+    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/\u0640/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
     .replace(/ة/g, 'ه')
-    .replace(/ى/g, 'ي')
+    .replace(/[ىي]/g, 'ي')
+    .replace(/ك/g, 'ك')
+    .replace(/ک/g, 'ك')
+    .replace(/ی/g, 'ي')
+    .replace(/ہ/g, 'ه')
     .replace(/[^\w\s\u0600-\u06FF]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -213,12 +219,12 @@ class AuthService {
         } else {
           accounts.push({
             id: `emp-auto-${emp.id}`,
-            username: emp.username || emp.name,
+            username: emp.username || emp.phone || emp.name,
             displayName: emp.name,
             role: 'employee',
             employeeId: emp.id,
-            password: emp.password,
-            pin: emp.pin,
+            password: emp.password || '123',
+            pin: emp.pin || '1234',
             active: true,
             createdAt: Date.now(),
           });
@@ -229,7 +235,83 @@ class AuthService {
     return accounts;
   }
 
-  public loginWithCredentials(
+  public async loginWithCredentials(
+    username: string, 
+    password?: string, 
+    expectedRole?: UserRole
+  ): Promise<{ success: boolean; message?: string; user?: UserAccount }> {
+    if (!username || !username.trim()) {
+      return { success: false, message: 'يرجى إدخال اسم المستخدم أو الاسم' };
+    }
+    if (!password || !password.trim()) {
+      return { success: false, message: 'يرجى إدخال كلمة المرور' };
+    }
+
+    const rawUser = username.trim();
+    const cleanPass = password.trim();
+
+    // 1. First attempt: Direct Server-Side Authoritative Login
+    try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timeoutId = controller ? setTimeout(() => controller.abort(), 2500) : null;
+
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller ? controller.signal : undefined,
+        body: JSON.stringify({ username: rawUser, password: cleanPass, role: expectedRole }),
+      });
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.success && json.user) {
+          if (json.settings || json.employees) {
+            syncService.applyServerFullState({
+              settings: json.settings,
+              employees: json.employees,
+            });
+          }
+          this.saveSession(json.user);
+          return { success: true, user: json.user };
+        }
+      } else if (res.status === 401) {
+        const errJson = await res.json().catch(() => ({}));
+        // Check local cache first before returning error, in case offline credentials differ
+        const localAttempt = this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
+        if (localAttempt.success) {
+          return localAttempt;
+        }
+        return { success: false, message: errJson.message || 'اسم المستخدم أو كلمة المرور غير صحيحة' };
+      }
+    } catch {
+      // Network offline or failed - fallback seamlessly to local
+    }
+
+    // 2. Offline / Local Evaluation
+    const localRes = this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
+    if (localRes.success) {
+      return localRes;
+    }
+
+    // 3. Fallback: If not found locally, trigger a fast state refresh from /api/data and retry once
+    try {
+      const refreshRes = await fetch(`/api/data?t=${Date.now()}`, { cache: 'no-store' });
+      if (refreshRes.ok) {
+        const freshData = await refreshRes.json();
+        if (freshData) {
+          syncService.applyServerFullState(freshData);
+          return this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return localRes;
+  }
+
+  public loginWithCredentialsLocal(
     username: string, 
     password?: string, 
     expectedRole?: UserRole
@@ -283,8 +365,8 @@ class AuthService {
             displayName: matchedEmp.name,
             role: 'employee',
             employeeId: matchedEmp.id,
-            password: matchedEmp.password,
-            pin: matchedEmp.pin,
+            password: matchedEmp.password || '123',
+            pin: matchedEmp.pin || '1234',
             active: matchedEmp.active !== false,
           };
         }
@@ -398,8 +480,17 @@ class AuthService {
       const isPasswordMatch = validPasswords.some((p) => {
         if (!p) return false;
         const pTrim = p.trim();
+        const asciiPTrim = toAsciiDigits(pTrim);
+
+        // 1. Exact match
         if (pTrim === cleanPass) return true;
-        if (toAsciiDigits(pTrim) === asciiCleanPass) return true;
+        // 2. ASCII digits match (e.g. 123 vs ١٢٣)
+        if (asciiPTrim === asciiCleanPass) return true;
+        // 3. Case-insensitive match (crucial for mobile auto-capitalization e.g. "Pass123" vs "pass123")
+        if (pTrim.toLowerCase() === cleanPass.toLowerCase()) return true;
+        // 4. Case-insensitive + ASCII digits
+        if (asciiPTrim.toLowerCase() === asciiCleanPass.toLowerCase()) return true;
+
         return false;
       });
 

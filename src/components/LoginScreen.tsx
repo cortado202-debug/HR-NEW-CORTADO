@@ -152,7 +152,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setErrorMessage(null);
   };
 
-  const handleLoginSubmit = (role: UserRole, e: React.FormEvent) => {
+  const handleLoginSubmit = async (role: UserRole, e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -184,15 +184,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       return;
     }
 
-    const res = authService.loginWithCredentials(username, password, role);
+    try {
+      const res = await authService.loginWithCredentials(username, password, role);
 
-    if (res.success && res.user) {
-      setSuccessMessage(`مرحباً بك، ${res.user.displayName}`);
-      setTimeout(() => {
-        onLoginSuccess();
-      }, 300);
-    } else {
-      setErrorMessage(res.message || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+      if (res.success && res.user) {
+        setSuccessMessage(`مرحباً بك، ${res.user.displayName}`);
+        setTimeout(() => {
+          onLoginSuccess();
+        }, 300);
+      } else {
+        setErrorMessage(res.message || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+        setIsLoading(false);
+      }
+    } catch {
+      setErrorMessage('حدث خطأ أثناء تسجيل الدخول، يرجى المحاولة مرة أخرى');
       setIsLoading(false);
     }
   };

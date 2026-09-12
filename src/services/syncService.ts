@@ -507,7 +507,7 @@ class SyncService {
   /**
    * Merges authoritative server full state into local memory.
    */
-  private applyServerFullState(serverData: any) {
+  public applyServerFullState(serverData: any) {
     if (!serverData) return;
 
     const mergedSettings: CompanySettings = {

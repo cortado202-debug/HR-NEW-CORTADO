@@ -36,9 +36,10 @@ export function formatSYPShort(amount: number): string {
  */
 export function parseSYPInput(val: string): number {
   if (!val) return 0;
-  // replace Arabic digits with western digits if any
+  // replace Arabic and Persian digits with western digits
   const normalized = val
-    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString())
+    .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString())
+    .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
     .replace(/[^\d]/g, '');
   const parsed = parseInt(normalized, 10);
   return isNaN(parsed) ? 0 : parsed;
