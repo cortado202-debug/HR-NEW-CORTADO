@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Employee, AttendanceRecord, CompanySettings } from '../types';
 import { EnglishMonthPicker } from './ui/EnglishMonthPicker';
 import { 
@@ -100,33 +100,18 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
       ? cachedName 
       : 'شركة كورتادو كافيه';
 
+  const printableRef = useRef<HTMLDivElement>(null);
+
   const handlePrint = () => {
-    triggerPrint();
+    triggerPrint(printableRef.current, `كشف الدوام لشهر ${selectedMonth} - ${activeCompanyName}`);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
         
-        {/* Printable Header (Visible only when printing) */}
-        <div className="hidden print-only p-6 border-b border-black text-center" dir="rtl">
-          <div className="flex items-center justify-between pb-3 border-b-2 border-slate-900">
-            <div className="text-right">
-              <h1 className="text-2xl font-black text-black">{activeCompanyName}</h1>
-              <p className="text-sm font-semibold text-gray-700">إدارة الموارد البشرية وشؤون الموظفين</p>
-              <p className="text-xs text-gray-600">سجل وكشف الحضور والغياب والتأخيرات والعمل الإضافي</p>
-            </div>
-            {activeLogo && (
-              <img src={activeLogo} alt={activeCompanyName} className="h-16 w-16 object-contain rounded-lg" />
-            )}
-          </div>
-          <div className="mt-4 p-2 bg-gray-100 border border-gray-300 rounded-lg font-bold text-sm">
-            كشف دوام شهر: {selectedMonth}
-          </div>
-        </div>
-
         {/* Modal Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print">
           <div className="flex items-center gap-3">
             {activeLogo ? (
               <img src={activeLogo} alt={activeCompanyName} className="w-10 h-10 object-contain rounded-xl border border-slate-200 p-1 bg-white shadow-2xs" />
@@ -165,6 +150,26 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Printable Container */}
+        <div ref={printableRef} id="attendance-ledger-printable" className="flex flex-col flex-1 overflow-y-auto">
+
+          {/* Printable Header (Visible only when printing) */}
+          <div className="hidden print-only p-6 border-b border-black text-center" dir="rtl">
+            <div className="flex items-center justify-between pb-3 border-b-2 border-slate-900">
+              <div className="text-right">
+                <h1 className="text-2xl font-black text-black">{activeCompanyName}</h1>
+                <p className="text-sm font-semibold text-gray-700">إدارة الموارد البشرية وشؤون الموظفين</p>
+                <p className="text-xs text-gray-600">سجل وكشف الحضور والغياب والتأخيرات والعمل الإضافي</p>
+              </div>
+              {activeLogo && (
+                <img src={activeLogo} alt={activeCompanyName} className="h-16 w-16 object-contain rounded-lg" />
+              )}
+            </div>
+            <div className="mt-4 p-2 bg-gray-100 border border-gray-300 rounded-lg font-bold text-sm">
+              كشف دوام شهر: {selectedMonth}
+            </div>
+          </div>
 
         {/* Filter Toolbar */}
         <div className="p-3.5 sm:p-4 bg-[#F8FAFC] border-b border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3">
@@ -421,6 +426,8 @@ export const AttendanceLedgerModal: React.FC<AttendanceLedgerModalProps> = ({
               </table>
             </div>
           )}
+
+        </div>
 
         </div>
 

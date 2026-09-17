@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { SalaryAdvance, Employee, CompanySettings } from '../types';
 import { EnglishMonthPicker } from './ui/EnglishMonthPicker';
 import { formatSYP, formatArabicDate } from '../utils/formatters';
@@ -111,31 +111,16 @@ export const AdvancesLedgerModal: React.FC<AdvancesLedgerModalProps> = ({
       ? cachedName 
       : 'شركة كورتادو كافيه';
 
+  const printableRef = useRef<HTMLDivElement>(null);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white rounded-xl w-full max-w-5xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
         
-        {/* Printable Header (Visible only when printing) */}
-        <div className="hidden print-only p-6 border-b border-black text-center" dir="rtl">
-          <div className="flex items-center justify-between pb-3 border-b-2 border-slate-900">
-            <div className="text-right">
-              <h1 className="text-2xl font-black text-black">{activeCompanyName}</h1>
-              <p className="text-sm font-semibold text-gray-700">قسم الشؤون المالية والمحاسبة</p>
-              <p className="text-xs text-gray-600">سجل ودفتر السلف المالية للموظفين بالليرة السورية</p>
-            </div>
-            {activeLogo && (
-              <img src={activeLogo} alt={activeCompanyName} className="h-16 w-16 object-contain rounded-lg" />
-            )}
-          </div>
-          <div className="mt-4 p-2 bg-gray-100 border border-gray-300 rounded-lg font-bold text-sm">
-            كشف السلف {selectedMonthFilter ? `لشهر: ${selectedMonthFilter}` : 'الكامل'}
-          </div>
-        </div>
-
         {/* Header */}
-        <div className="p-3.5 sm:p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F8FAFC]">
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F8FAFC] no-print">
           <div className="flex items-center gap-2.5">
             {activeLogo ? (
               <img src={activeLogo} alt={activeCompanyName} className="w-10 h-10 object-contain rounded-xl border border-slate-200 p-1 bg-white shadow-2xs" />
@@ -159,7 +144,7 @@ export const AdvancesLedgerModal: React.FC<AdvancesLedgerModalProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => triggerPrint()}
+              onClick={() => triggerPrint(printableRef.current, `دفتر السلف المالية - ${activeCompanyName}`)}
               className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5 text-slate-600" />
@@ -181,6 +166,26 @@ export const AdvancesLedgerModal: React.FC<AdvancesLedgerModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Printable Section Wrapper */}
+        <div ref={printableRef} id="advances-ledger-printable" className="flex flex-col flex-1 overflow-y-auto">
+
+          {/* Printable Header (Visible only when printing) */}
+          <div className="hidden print-only p-6 border-b border-black text-center" dir="rtl">
+            <div className="flex items-center justify-between pb-3 border-b-2 border-slate-900">
+              <div className="text-right">
+                <h1 className="text-2xl font-black text-black">{activeCompanyName}</h1>
+                <p className="text-sm font-semibold text-gray-700">قسم الشؤون المالية والمحاسبة</p>
+                <p className="text-xs text-gray-600">سجل ودفتر السلف المالية للموظفين بالليرة السورية</p>
+              </div>
+              {activeLogo && (
+                <img src={activeLogo} alt={activeCompanyName} className="h-16 w-16 object-contain rounded-lg" />
+              )}
+            </div>
+            <div className="mt-4 p-2 bg-gray-100 border border-gray-300 rounded-lg font-bold text-sm">
+              كشف السلف {selectedMonthFilter ? `لشهر: ${selectedMonthFilter}` : 'الكامل'}
+            </div>
+          </div>
 
         {/* Filter Bar & Summary Ribbon */}
         <div className="p-3 sm:p-4 border-b border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -308,6 +313,8 @@ export const AdvancesLedgerModal: React.FC<AdvancesLedgerModalProps> = ({
               </tbody>
             </table>
           )}
+        </div>
+
         </div>
 
       </div>

@@ -72,6 +72,11 @@ function isMatchingIdentity(candidate?: string | null, input?: string | null): b
     if (phoneCand === phoneInp || phoneCand.endsWith(phoneInp) || phoneInp.endsWith(phoneCand)) {
       return true;
     }
+    const cLast = phoneCand.slice(-8);
+    const iLast = phoneInp.slice(-8);
+    if (cLast.length >= 7 && iLast.length >= 7 && cLast === iLast) {
+      return true;
+    }
   }
 
   // Check ASCII numbers (PIN/ID/Codes)
@@ -92,15 +97,30 @@ function isMatchingIdentity(candidate?: string | null, input?: string | null): b
     return true;
   }
 
-  // Check prefix or first word (e.g. "Ahmed" matches "Ahmed (مستودع)" or "Ahmed Ali")
-  const firstWordCand = normCand.split(' ')[0];
-  const firstWordInp = normInp.split(' ')[0];
-  if (firstWordCand && firstWordInp && firstWordCand === firstWordInp && firstWordInp.length >= 3) {
+  if (normCand.includes(normInp) || normInp.includes(normCand)) {
     return true;
   }
 
-  if (normCand.includes(normInp) || normInp.includes(normCand)) {
-    return true;
+  // Multi-word matching: If all words entered exist in the candidate name (e.g. "محمد الحلبي" matches "محمد خالد الحلبي")
+  const candWords = normCand.split(' ').filter((w) => w.length >= 2);
+  const inpWords = normInp.split(' ').filter((w) => w.length >= 2);
+  if (candWords.length > 0 && inpWords.length > 0) {
+    const allInpMatch = inpWords.every((iw) =>
+      candWords.some((cw) => cw === iw || cw.startsWith(iw) || cw.includes(iw))
+    );
+    if (allInpMatch) return true;
+
+    // Check last word (family name)
+    const candFamily = candWords[candWords.length - 1];
+    if (candFamily && candFamily.length >= 3 && inpWords.some((iw) => iw === candFamily || candFamily.includes(iw))) {
+      return true;
+    }
+
+    // Check first word (first name)
+    const candFirst = candWords[0];
+    if (candFirst && candFirst.length >= 3 && inpWords.some((iw) => iw === candFirst)) {
+      return true;
+    }
   }
 
   return false;
@@ -471,8 +491,11 @@ class AuthService {
         }
       }
 
-      // If absolutely no password or PIN was configured at all, allow initial default '123'
-      if (validPasswords.length === 0) {
+      // For employees, also include default '123' and '1234' fallback
+      if (found.role === 'employee') {
+        if (!validPasswords.includes('123')) validPasswords.push('123');
+        if (!validPasswords.includes('1234')) validPasswords.push('1234');
+      } else if (validPasswords.length === 0) {
         validPasswords.push('123');
       }
 

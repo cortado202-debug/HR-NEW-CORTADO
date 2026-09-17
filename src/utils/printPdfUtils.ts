@@ -117,7 +117,8 @@ export function triggerPrint(
       document.getElementById('employee-monthly-statement-printable') ||
       document.getElementById('advance-receipt-printable') ||
       document.getElementById('monthly-payroll-table-printable') ||
-      document.getElementById('attendance-ledger-printable');
+      document.getElementById('attendance-ledger-printable') ||
+      document.getElementById('advances-ledger-printable');
   }
 
   if (!element) {
@@ -191,6 +192,9 @@ export function triggerPrint(
             }
             .no-print, button, [data-no-print] {
               display: none !important;
+            }
+            .print-only {
+              display: block !important;
             }
             #isolated-print-wrapper {
               width: 100% !important;
