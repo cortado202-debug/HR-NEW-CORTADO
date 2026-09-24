@@ -39,13 +39,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [empRemember, setEmpRemember] = useState<boolean>(true);
 
   // 2. Supervisor Form (Middle)
-  const [supUsername, setSupUsername] = useState<string>('supervisor');
+  const [supUsername, setSupUsername] = useState<string>('');
   const [supPassword, setSupPassword] = useState<string>('');
   const [showSupPassword, setShowSupPassword] = useState<boolean>(false);
   const [supRemember, setSupRemember] = useState<boolean>(true);
 
   // 3. Admin Form (Bottom)
-  const [adminUsername, setAdminUsername] = useState<string>(settings.directorName || 'admin');
+  const [adminUsername, setAdminUsername] = useState<string>('');
   const [adminPassword, setAdminPassword] = useState<string>('');
   const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [adminRemember, setAdminRemember] = useState<boolean>(true);

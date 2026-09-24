@@ -16,21 +16,100 @@
         "id": "user-admin",
         "username": "admin",
         "password": "123",
-        "pin": "1234",
-        "displayName": "المدير العام",
-        "role": "admin",
-        "active": true,
-        "createdAt": 1789210247913
+        "role": "admin"
       },
       {
         "id": "user-supervisor",
         "username": "supervisor",
         "password": "123",
-        "pin": "5678",
-        "displayName": "المشرف الميداني",
-        "role": "supervisor",
+        "role": "supervisor"
+      },
+      {
+        "id": "user-ali",
+        "username": "ali",
+        "password": "mysecretpass",
+        "role": "employee",
+        "employeeId": "emp-1790253674477",
+        "pin": "1234",
+        "displayName": "علي حسن",
+        "active": true
+      },
+      {
+        "id": "user-emp-1",
+        "username": "0944123456",
+        "password": "123",
+        "pin": "1234",
+        "displayName": "محمد خالد الحلبي",
+        "role": "employee",
+        "employeeId": "emp-1",
         "active": true,
-        "createdAt": 1789210247913
+        "createdAt": 1790253969498
+      },
+      {
+        "id": "user-emp-2",
+        "username": "0933789012",
+        "password": "123",
+        "pin": "1234",
+        "displayName": "سامر أحمد النجار",
+        "role": "employee",
+        "employeeId": "emp-2",
+        "active": true,
+        "createdAt": 1790253969498
+      },
+      {
+        "id": "user-emp-3",
+        "username": "0955432109",
+        "password": "123",
+        "pin": "1234",
+        "displayName": "عمر ياسين الكردي",
+        "role": "employee",
+        "employeeId": "emp-3",
+        "active": true,
+        "createdAt": 1790253969498
+      },
+      {
+        "id": "user-emp-4",
+        "username": "0988654321",
+        "password": "123",
+        "pin": "1234",
+        "displayName": "ريم طارق الشامي",
+        "role": "employee",
+        "employeeId": "emp-4",
+        "active": true,
+        "createdAt": 1790253969499
+      },
+      {
+        "id": "user-emp-5",
+        "username": "0966543210",
+        "password": "123",
+        "pin": "1234",
+        "displayName": "باسل محمود إدريس",
+        "role": "employee",
+        "employeeId": "emp-5",
+        "active": true,
+        "createdAt": 1790253969499
+      },
+      {
+        "id": "user-emp-6",
+        "username": "0999876543",
+        "password": "123",
+        "pin": "1234",
+        "displayName": "طارق عبد الله مراد",
+        "role": "employee",
+        "employeeId": "emp-6",
+        "active": true,
+        "createdAt": 1790253969499
+      },
+      {
+        "id": "user-emp-1790253970610",
+        "username": "samer",
+        "password": "custompassword123",
+        "pin": "7788",
+        "displayName": "سامر العلي",
+        "role": "employee",
+        "employeeId": "emp-1790253970610",
+        "active": true,
+        "createdAt": 1790253970610
       }
     ],
     "shifts": [
@@ -148,6 +227,29 @@
       "username": "0999876543",
       "password": "123",
       "pin": "1234"
+    },
+    {
+      "name": "علي حسن",
+      "username": "ali",
+      "password": "mysecretpass",
+      "baseSalary": 2000000,
+      "id": "emp-1790253674477",
+      "pin": "1234",
+      "active": true,
+      "joinedDate": "2026-09-24",
+      "avatarColor": "bg-slate-700"
+    },
+    {
+      "name": "سامر العلي",
+      "username": "samer",
+      "password": "custompassword123",
+      "pin": "7788",
+      "phone": "0933112233",
+      "baseSalary": 1500000,
+      "id": "emp-1790253970610",
+      "active": true,
+      "joinedDate": "2026-09-24",
+      "avatarColor": "bg-slate-700"
     }
   ],
   "advances": [
@@ -228,5 +330,5 @@
       "updatedAt": 1788855465747
     }
   },
-  "lastUpdated": 1789643485268
+  "lastUpdated": 1790253970611
 }

@@ -389,8 +389,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (directorName) localStorage.setItem('cortado_director_name', directorName.trim());
       }
 
-      // Perform update with timeout protection
-      const updatePromise = Promise.all([
+      // Perform update with full persistence
+      await Promise.all([
         syncService.updateBranding({
           companyName: companyName.trim(),
           directorName: directorName.trim(),
@@ -415,10 +415,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           shifts,
           users: currentUsers,
         }),
+        syncService.updateCredentials({
+          role: 'admin',
+          username: cleanAdminUser,
+          password: cleanAdminPass,
+          pin: cleanAdminPin,
+          displayName: directorName.trim(),
+        }),
       ]);
-
-      const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 1000));
-      await Promise.race([updatePromise, timeoutPromise]);
 
       setSettingsSavedSuccess(true);
       triggerToast('✅ تم حفظ كافة إعدادات الشركة وبيانات دخول المدير بنجاح ومزامنتها مباشرة!');
@@ -498,9 +502,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       updatedList = [...usersList, newUser];
     }
 
-    // If role is employee and linked to an employee ID, sync credentials to employee record
-    if (uRole === 'employee' && uEmployeeId) {
-      const targetEmp = employees.find((emp) => emp.id === uEmployeeId);
+    // If role is employee, sync credentials to employee record
+    if (uRole === 'employee') {
+      const targetEmp = employees.find(
+        (emp) =>
+          (uEmployeeId && emp.id === uEmployeeId) ||
+          (cleanUsername && emp.username?.toLowerCase() === cleanUsername.toLowerCase()) ||
+          (emp.name?.trim().toLowerCase() === cleanDisplayName.toLowerCase())
+      );
       if (targetEmp) {
         await onSaveEmployee({
           ...targetEmp,
@@ -508,7 +517,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           password: cleanPassword,
           pin: cleanPin,
         });
+        await syncService.updateCredentials({
+          role: 'employee',
+          employeeId: targetEmp.id,
+          username: cleanUsername,
+          password: cleanPassword,
+          pin: cleanPin,
+          displayName: cleanDisplayName,
+        });
       }
+    } else if (uRole === 'admin') {
+      setAdminUsername(cleanUsername);
+      setAdminPassword(cleanPassword);
+      await syncService.updateCredentials({
+        role: 'admin',
+        username: cleanUsername,
+        password: cleanPassword,
+        pin: cleanPin,
+        displayName: cleanDisplayName,
+      });
+    } else if (uRole === 'supervisor') {
+      await syncService.updateCredentials({
+        role: 'supervisor',
+        username: cleanUsername,
+        password: cleanPassword,
+        pin: cleanPin,
+        displayName: cleanDisplayName,
+      });
     }
 
     setUsersList(updatedList);
@@ -641,13 +676,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         avatarColor: editingEmployee?.avatarColor || 'bg-slate-700',
       };
 
-      await onSaveEmployee(savedEmpData);
+      const savedResult = await onSaveEmployee(savedEmpData);
+      const targetEmpId = savedResult?.id || editingEmployee?.id || savedEmpData.id;
 
       // Auto update or create user account in usersList
       let updatedUsers = [...usersList];
-      const targetEmpId = editingEmployee?.id;
       const existingUserIdx = updatedUsers.findIndex(
-        (u) => (targetEmpId && u.employeeId === targetEmpId) || (u.role === 'employee' && u.username?.toLowerCase() === cleanEmpUsername.toLowerCase())
+        (u) =>
+          (targetEmpId && u.employeeId === targetEmpId) ||
+          (u.role === 'employee' &&
+            (u.username?.toLowerCase() === cleanEmpUsername.toLowerCase() ||
+              u.displayName?.trim().toLowerCase() === empName.trim().toLowerCase()))
       );
 
       if (existingUserIdx >= 0) {
@@ -662,7 +701,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         };
       } else {
         updatedUsers.push({
-          id: `user-${Date.now()}`,
+          id: `user-${targetEmpId}`,
           username: cleanEmpUsername,
           password: cleanEmpPassword,
           pin: cleanEmpPin,
@@ -677,6 +716,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setUsersList(updatedUsers);
       await onUpdateSettings({
         users: updatedUsers,
+      });
+
+      // Direct credentials update on server for immediate persistence
+      await syncService.updateCredentials({
+        role: 'employee',
+        employeeId: targetEmpId,
+        username: cleanEmpUsername,
+        password: cleanEmpPassword,
+        pin: cleanEmpPin,
+        displayName: empName.trim(),
       });
 
       setShowEmployeeForm(false);

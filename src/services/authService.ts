@@ -59,6 +59,85 @@ function cleanTextWithoutBrackets(str?: string | null): string {
     .trim();
 }
 
+function scoreEmployeeMatch(emp: any, rawUser: string): number {
+  if (!emp || emp.active === false) return 0;
+  const lowerUser = rawUser.toLowerCase().trim();
+  const normUser = normalizeString(rawUser);
+
+  const eUsername = String(emp.username || '').trim();
+  const eName = String(emp.name || '').trim();
+  const ePhone = String(emp.phone || '').trim();
+  const eId = String(emp.id || '').trim();
+
+  // 1. Exact username
+  if (eUsername && eUsername.toLowerCase() === lowerUser) return 100;
+  if (eUsername && normalizeString(eUsername) === normUser) return 98;
+
+  // 2. Exact ID
+  if (eId && (eId.toLowerCase() === lowerUser || normalizeString(eId) === normUser)) return 95;
+
+  // 3. Exact Phone
+  if (ePhone && isPhoneMatch(ePhone, rawUser)) return 92;
+
+  // 4. Exact Full Name
+  if (eName && normalizeString(eName) === normUser) return 90;
+  if (eName && eName.toLowerCase() === lowerUser) return 88;
+
+  // 5. Multi-word name containment
+  const candWords = normalizeString(eName).split(/\s+/).filter((w) => w.length >= 2);
+  const inpWords = normUser.split(/\s+/).filter((w) => w.length >= 2);
+  if (candWords.length > 0 && inpWords.length > 0) {
+    if (inpWords.length > 1) {
+      const allInpInCand = inpWords.every((iw) =>
+        candWords.some((cw) => cw === iw || cw.startsWith(iw))
+      );
+      if (allInpInCand) return 80;
+    } else {
+      const singleInp = inpWords[0];
+      if (candWords[0] === singleInp) return 60;
+      if (candWords[candWords.length - 1] === singleInp) return 55;
+      if (candWords.some((cw) => cw === singleInp)) return 50;
+    }
+  }
+
+  return 0;
+}
+
+function scoreUserMatch(user: any, rawUser: string): number {
+  if (!user || user.active === false) return 0;
+  const lowerUser = rawUser.toLowerCase().trim();
+  const normUser = normalizeString(rawUser);
+
+  const uUsername = String(user.username || '').trim();
+  const uName = String(user.displayName || '').trim();
+  const uEmpId = String(user.employeeId || '').trim();
+
+  if (uUsername && uUsername.toLowerCase() === lowerUser) return 100;
+  if (uUsername && normalizeString(uUsername) === normUser) return 98;
+  if (uEmpId && (uEmpId.toLowerCase() === lowerUser || normalizeString(uEmpId) === normUser)) return 95;
+  if (isPhoneMatch(uUsername, rawUser)) return 92;
+  if (uName && normalizeString(uName) === normUser) return 90;
+  if (uName && uName.toLowerCase() === lowerUser) return 88;
+
+  const candWords = normalizeString(uName).split(/\s+/).filter((w) => w.length >= 2);
+  const inpWords = normUser.split(/\s+/).filter((w) => w.length >= 2);
+  if (candWords.length > 0 && inpWords.length > 0) {
+    if (inpWords.length > 1) {
+      const allInpInCand = inpWords.every((iw) =>
+        candWords.some((cw) => cw === iw || cw.startsWith(iw))
+      );
+      if (allInpInCand) return 80;
+    } else {
+      const singleInp = inpWords[0];
+      if (candWords[0] === singleInp) return 60;
+      if (candWords[candWords.length - 1] === singleInp) return 55;
+      if (candWords.some((cw) => cw === singleInp)) return 50;
+    }
+  }
+
+  return 0;
+}
+
 function isMatchingIdentity(candidate?: string | null, input?: string | null): boolean {
   if (!candidate || !input) return false;
   const rawCand = candidate.trim().toLowerCase();
@@ -90,37 +169,27 @@ function isMatchingIdentity(candidate?: string | null, input?: string | null): b
 
   const bracketCleanCand = normalizeString(cleanTextWithoutBrackets(candidate));
   const bracketCleanInp = normalizeString(cleanTextWithoutBrackets(input));
-  if (bracketCleanCand && normInp && (bracketCleanCand === normInp || bracketCleanCand.includes(normInp) || normInp.includes(bracketCleanCand))) {
+  if (bracketCleanCand && normInp && bracketCleanCand === normInp) {
     return true;
   }
   if (bracketCleanCand && bracketCleanInp && bracketCleanCand === bracketCleanInp) {
     return true;
   }
 
-  if (normCand.includes(normInp) || normInp.includes(normCand)) {
-    return true;
-  }
-
-  // Multi-word matching: If all words entered exist in the candidate name (e.g. "محمد الحلبي" matches "محمد خالد الحلبي")
+  // Multi-word matching: ALL words must be in candidate
   const candWords = normCand.split(' ').filter((w) => w.length >= 2);
   const inpWords = normInp.split(' ').filter((w) => w.length >= 2);
   if (candWords.length > 0 && inpWords.length > 0) {
-    const allInpMatch = inpWords.every((iw) =>
-      candWords.some((cw) => cw === iw || cw.startsWith(iw) || cw.includes(iw))
-    );
-    if (allInpMatch) return true;
-
-    // Check last word (family name)
-    const candFamily = candWords[candWords.length - 1];
-    if (candFamily && candFamily.length >= 3 && inpWords.some((iw) => iw === candFamily || candFamily.includes(iw))) {
-      return true;
+    if (inpWords.length > 1) {
+      const allInpMatch = inpWords.every((iw) =>
+        candWords.some((cw) => cw === iw || cw.startsWith(iw))
+      );
+      if (allInpMatch) return true;
+      return false;
     }
 
-    // Check first word (first name)
-    const candFirst = candWords[0];
-    if (candFirst && candFirst.length >= 3 && inpWords.some((iw) => iw === candFirst)) {
-      return true;
-    }
+    const singleInp = inpWords[0];
+    return candWords.some((cw) => cw === singleInp);
   }
 
   return false;
@@ -352,44 +421,39 @@ class AuthService {
 
     // 1. If role is EMPLOYEE: Check both accounts and employees list with smart matching
     if (expectedRole === 'employee') {
-      // Check in user accounts first
-      found = accounts.find((u) => {
-        if (u.role !== 'employee' || u.active === false) return false;
-        if (isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser)) return true;
-        if (u.employeeId && isMatchingIdentity(u.employeeId, rawUser)) return true;
-        if (u.employeeId) {
-          const emp = data.employees.find((e) => e.id === u.employeeId);
-          if (emp && (isMatchingIdentity(emp.name, rawUser) || (emp.phone && isMatchingIdentity(emp.phone, rawUser)))) {
-            return true;
-          }
-        }
-        return false;
-      });
+      const scoredEmployees = data.employees
+        .map((e) => ({ emp: e, score: scoreEmployeeMatch(e, rawUser) }))
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score);
 
-      // If not found in accounts, check directly in employees collection
-      if (!found) {
-        const matchedEmp = data.employees.find((e) => {
-          if (e.active === false) return false;
-          return (
-            isMatchingIdentity(e.username, rawUser) ||
-            isMatchingIdentity(e.name, rawUser) ||
-            (e.phone && isMatchingIdentity(e.phone, rawUser)) ||
-            (e.id && isMatchingIdentity(e.id, rawUser))
-          );
-        });
+      const scoredUsers = accounts
+        .filter((u) => u.role === 'employee')
+        .map((u) => ({ user: u, score: scoreUserMatch(u, rawUser) }))
+        .filter((item) => item.score > 0)
+        .sort((a, b) => b.score - a.score);
 
-        if (matchedEmp) {
-          found = {
-            id: `emp-usr-${matchedEmp.id}`,
-            username: matchedEmp.username || matchedEmp.phone || matchedEmp.name,
-            displayName: matchedEmp.name,
-            role: 'employee',
-            employeeId: matchedEmp.id,
-            password: matchedEmp.password || '123',
-            pin: matchedEmp.pin || '1234',
-            active: matchedEmp.active !== false,
-          };
-        }
+      const bestEmp = scoredEmployees[0]?.emp;
+      const bestUser = scoredUsers[0]?.user;
+
+      if (bestEmp || bestUser) {
+        const empScore = scoredEmployees[0]?.score || 0;
+        const userScore = scoredUsers[0]?.score || 0;
+
+        const finalEmp = empScore >= userScore ? bestEmp : (bestUser?.employeeId ? data.employees.find((e) => e.id === bestUser.employeeId) || bestEmp : bestEmp);
+        const finalUser = userScore > empScore ? bestUser : (bestEmp ? accounts.find((u) => u.employeeId === bestEmp.id) || bestUser : bestUser);
+        const finalEmpId = finalEmp?.id || finalUser?.employeeId;
+
+        found = {
+          id: finalUser?.id || `user-${finalEmpId || Date.now()}`,
+          username: finalUser?.username || finalEmp?.username || finalEmp?.phone || finalEmp?.name || rawUser,
+          displayName: finalEmp?.name || finalUser?.displayName || 'موظف',
+          role: 'employee',
+          employeeId: finalEmpId,
+          password: finalEmp?.password || finalUser?.password || '123',
+          pin: finalEmp?.pin || finalUser?.pin || '1234',
+          active: (finalEmp ? finalEmp.active !== false : true) && (finalUser ? finalUser.active !== false : true),
+          avatarColor: finalEmp?.avatarColor || 'bg-slate-700',
+        };
       }
     } 
     // 2. If role is SUPERVISOR

@@ -876,10 +876,14 @@ class SyncService {
     const isNew = !employee.id || !this.data.employees.some((e) => e.id === employee.id);
     let saved: Employee;
 
+    const cleanUsername = String(employee.username || employee.phone || employee.name).trim();
+    const cleanPassword = employee.password && String(employee.password).trim() !== '' ? String(employee.password).trim() : '123';
+    const cleanPin = employee.pin && String(employee.pin).trim() !== '' ? String(employee.pin).trim() : '1234';
+
     if (isNew) {
       saved = {
         id: employee.id || `emp-${Date.now()}`,
-        name: employee.name,
+        name: employee.name.trim(),
         jobTitle: employee.jobTitle || 'موظف',
         phone: employee.phone || '',
         baseSalary: Number(employee.baseSalary) || 0,
@@ -888,9 +892,9 @@ class SyncService {
         absentDeductionRate: employee.absentDeductionRate || 1.0,
         assignedShiftId: employee.assignedShiftId,
         maxMonthlyAdvance: employee.maxMonthlyAdvance,
-        pin: employee.pin || '1234',
-        username: employee.username || undefined,
-        password: employee.password || '123',
+        pin: cleanPin,
+        username: cleanUsername,
+        password: cleanPassword,
         active: employee.active !== undefined ? employee.active : true,
         joinedDate: employee.joinedDate || new Date().toISOString().split('T')[0],
         avatarColor: employee.avatarColor || 'bg-slate-700',
@@ -901,21 +905,75 @@ class SyncService {
       saved = {
         ...(this.data.employees.find((e) => e.id === employee.id)!),
         ...employee,
+        name: employee.name.trim(),
+        username: cleanUsername,
+        password: cleanPassword,
+        pin: cleanPin,
         baseSalary: Number(employee.baseSalary),
       };
       this.data.employees = this.data.employees.map((e) => (e.id === employee.id ? saved : e));
       this.broadcastLocal('EMPLOYEE_UPDATED', saved);
     }
 
+    // Immediately keep settings.users in sync locally
+    if (!this.data.settings.users || !Array.isArray(this.data.settings.users)) {
+      this.data.settings.users = [];
+    }
+    const userIdx = this.data.settings.users.findIndex(
+      (u) =>
+        u.employeeId === saved.id ||
+        (u.role === 'employee' &&
+          (u.username?.toLowerCase() === cleanUsername.toLowerCase() ||
+            u.displayName?.trim().toLowerCase() === saved.name.toLowerCase()))
+    );
+
+    if (userIdx >= 0) {
+      this.data.settings.users[userIdx] = {
+        ...this.data.settings.users[userIdx],
+        employeeId: saved.id,
+        username: cleanUsername,
+        password: cleanPassword,
+        pin: cleanPin,
+        displayName: saved.name,
+        role: 'employee',
+        active: saved.active !== false,
+      };
+    } else {
+      this.data.settings.users.push({
+        id: `user-${saved.id}`,
+        username: cleanUsername,
+        password: cleanPassword,
+        pin: cleanPin,
+        displayName: saved.name,
+        role: 'employee',
+        employeeId: saved.id,
+        active: saved.active !== false,
+        createdAt: Date.now(),
+      });
+    }
+
     this.data.lastUpdated = Date.now();
+    this.saveLocal();
     this.notify();
 
-    // Post to Express server
-    fetch('/api/employees', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ employee: saved, clientId: CLIENT_ID }),
-    }).catch((e) => console.warn('POST /api/employees err:', e));
+    // Post to Express server and wait for confirmation
+    try {
+      const res = await fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee: saved, clientId: CLIENT_ID }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.users && Array.isArray(json.users)) {
+          this.data.settings.users = json.users;
+          this.saveLocal();
+          this.notify();
+        }
+      }
+    } catch (e) {
+      console.warn('POST /api/employees err:', e);
+    }
 
     // Backup Firestore
     this.pushToFirestore().catch(() => {});
@@ -942,6 +1000,35 @@ class SyncService {
    */
   public async updateSettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
     this.data.settings = { ...this.data.settings, ...settings };
+
+    // If users array was updated, cross-sync credentials to employees collection immediately
+    if (Array.isArray(settings.users)) {
+      settings.users.forEach((u) => {
+        if (u.role === 'employee') {
+          const emp = this.data.employees.find(
+            (e) =>
+              (u.employeeId && e.id === u.employeeId) ||
+              (u.username && e.username && e.username.toLowerCase() === u.username.toLowerCase()) ||
+              (u.displayName && e.name && e.name.trim().toLowerCase() === u.displayName.trim().toLowerCase())
+          );
+          if (emp) {
+            if (u.password && String(u.password).trim() !== '') {
+              emp.password = String(u.password).trim();
+            }
+            if (u.pin && String(u.pin).trim() !== '') {
+              emp.pin = String(u.pin).trim();
+            }
+            if (u.username && String(u.username).trim() !== '') {
+              emp.username = String(u.username).trim();
+            }
+            if (u.active !== undefined) {
+              emp.active = u.active;
+            }
+          }
+        }
+      });
+    }
+
     this.data.lastUpdated = Date.now();
 
     // 1. Immediately cache in local storage for 0ms paint
@@ -979,19 +1066,22 @@ class SyncService {
 
     // 4. Send POST to server for instant multi-device SSE broadcast
     try {
-      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timeoutId = controller ? setTimeout(() => controller.abort(), 3000) : null;
-
-      fetch('/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: controller ? controller.signal : undefined,
         body: JSON.stringify({ settings: this.data.settings, clientId: CLIENT_ID }),
-      })
-        .catch((err) => console.warn('POST /api/settings failed:', err))
-        .finally(() => {
-          if (timeoutId) clearTimeout(timeoutId);
-        });
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.settings) {
+          this.data.settings = { ...this.data.settings, ...json.settings };
+        }
+        if (json.employees && Array.isArray(json.employees)) {
+          this.data.employees = json.employees;
+        }
+        this.saveLocal();
+        this.notify();
+      }
     } catch (err) {
       console.warn('POST /api/settings failed:', err);
     }
@@ -1037,6 +1127,41 @@ class SyncService {
     // 6. Push to Firebase Firestore in background with merge
     this.pushToFirestore(true).catch(() => {});
     return this.data.settings;
+  }
+
+  public async updateCredentials(payload: {
+    role: UserRole;
+    id?: string;
+    employeeId?: string;
+    username?: string;
+    password?: string;
+    pin?: string;
+    displayName?: string;
+  }): Promise<boolean> {
+    try {
+      const res = await fetch('/api/auth/update-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, clientId: CLIENT_ID }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.settings) {
+          this.data.settings = { ...this.data.settings, ...json.settings };
+        }
+        if (json.employee) {
+          this.data.employees = this.data.employees.map((e) =>
+            e.id === json.employee.id ? json.employee : e
+          );
+        }
+        this.saveLocal();
+        this.notify();
+        return true;
+      }
+    } catch (e) {
+      console.warn('updateCredentials err:', e);
+    }
+    return false;
   }
 
   /**
