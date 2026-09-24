@@ -187,17 +187,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     try {
       const res = await authService.loginWithCredentials(username, password, role);
 
-      if (res.success && res.user) {
+      if (res && res.success && res.user) {
         setSuccessMessage(`مرحباً بك، ${res.user.displayName}`);
         setTimeout(() => {
           onLoginSuccess();
         }, 300);
       } else {
-        setErrorMessage(res.message || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+        setErrorMessage(res?.message || 'اسم المستخدم أو كلمة المرور غير صحيحة');
         setIsLoading(false);
       }
-    } catch {
-      setErrorMessage('حدث خطأ أثناء تسجيل الدخول، يرجى المحاولة مرة أخرى');
+    } catch (err: any) {
+      console.error('handleLoginSubmit error:', err);
+      setErrorMessage(err?.message || 'اسم المستخدم أو كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى');
       setIsLoading(false);
     }
   };

@@ -30,6 +30,21 @@ function normalizePhone(str?: string | null): string {
   return digits;
 }
 
+function isPhoneMatch(candidatePhone?: string | null, inputPhone?: string | null): boolean {
+  if (!candidatePhone || !inputPhone) return false;
+  const c = normalizePhone(candidatePhone);
+  const i = normalizePhone(inputPhone);
+  if (!c || !i) return false;
+  if (c === i) return true;
+  const cDigits = toAsciiDigits(candidatePhone).replace(/\D/g, '');
+  const iDigits = toAsciiDigits(inputPhone).replace(/\D/g, '');
+  if (cDigits && iDigits && cDigits === iDigits) return true;
+  const cLast = cDigits.slice(-8);
+  const iLast = iDigits.slice(-8);
+  if (cLast.length >= 7 && iLast.length >= 7 && cLast === iLast) return true;
+  return false;
+}
+
 function normalizeString(str?: string | null): string {
   if (!str) return '';
   return toAsciiDigits(str)
@@ -339,65 +354,74 @@ class AuthService {
     const rawUser = username.trim();
     const cleanPass = password.trim();
 
-    // 1. First attempt: Direct Server-Side Authoritative Login
     try {
-      const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timeoutId = controller ? setTimeout(() => controller.abort(), 2500) : null;
+      // 1. First attempt: Direct Server-Side Authoritative Login
+      try {
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), 2500) : null;
 
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller ? controller.signal : undefined,
-        body: JSON.stringify({ username: rawUser, password: cleanPass, role: expectedRole }),
-      });
-      if (timeoutId) clearTimeout(timeoutId);
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller ? controller.signal : undefined,
+          body: JSON.stringify({ username: rawUser, password: cleanPass, role: expectedRole }),
+        });
+        if (timeoutId) clearTimeout(timeoutId);
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json && json.success && json.user) {
-          if (json.settings || json.employees) {
-            syncService.applyServerFullState({
-              settings: json.settings,
-              employees: json.employees,
-            });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.success && json.user) {
+            if (json.settings || json.employees) {
+              syncService.applyServerFullState({
+                settings: json.settings,
+                employees: json.employees,
+              });
+            }
+            this.saveSession(json.user);
+            return { success: true, user: json.user };
           }
-          this.saveSession(json.user);
-          return { success: true, user: json.user };
+        } else {
+          const errJson = await res.json().catch(() => ({}));
+          // Check local cache first before returning error, in case offline credentials differ
+          const localAttempt = this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
+          if (localAttempt.success) {
+            return localAttempt;
+          }
+          return { success: false, message: errJson.message || 'اسم المستخدم أو كلمة المرور غير صحيحة' };
         }
-      } else if (res.status === 401) {
-        const errJson = await res.json().catch(() => ({}));
-        // Check local cache first before returning error, in case offline credentials differ
-        const localAttempt = this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
-        if (localAttempt.success) {
-          return localAttempt;
-        }
-        return { success: false, message: errJson.message || 'اسم المستخدم أو كلمة المرور غير صحيحة' };
+      } catch {
+        // Network offline or failed - fallback seamlessly to local
       }
-    } catch {
-      // Network offline or failed - fallback seamlessly to local
-    }
 
-    // 2. Offline / Local Evaluation
-    const localRes = this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
-    if (localRes.success) {
+      // 2. Offline / Local Evaluation
+      const localRes = this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
+      if (localRes.success) {
+        return localRes;
+      }
+
+      // 3. Fallback: If not found locally, trigger a fast state refresh from /api/data and retry once
+      try {
+        const refreshRes = await fetch(`/api/data?t=${Date.now()}`, { cache: 'no-store' });
+        if (refreshRes.ok) {
+          const freshData = await refreshRes.json();
+          if (freshData) {
+            syncService.applyServerFullState(freshData);
+            return this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
+          }
+        }
+      } catch {
+        // ignore
+      }
+
       return localRes;
-    }
-
-    // 3. Fallback: If not found locally, trigger a fast state refresh from /api/data and retry once
-    try {
-      const refreshRes = await fetch(`/api/data?t=${Date.now()}`, { cache: 'no-store' });
-      if (refreshRes.ok) {
-        const freshData = await refreshRes.json();
-        if (freshData) {
-          syncService.applyServerFullState(freshData);
-          return this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
-        }
+    } catch (err: any) {
+      console.error('loginWithCredentials error:', err);
+      try {
+        return this.loginWithCredentialsLocal(rawUser, cleanPass, expectedRole);
+      } catch {
+        return { success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
       }
-    } catch {
-      // ignore
     }
-
-    return localRes;
   }
 
   public loginWithCredentialsLocal(

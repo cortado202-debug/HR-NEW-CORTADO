@@ -9,6 +9,7 @@ export interface UserAccount {
   role: UserRole;
   employeeId?: string; // Links to Employee.id if role is 'employee'
   active: boolean;
+  avatarColor?: string;
   createdAt?: number;
 }
 

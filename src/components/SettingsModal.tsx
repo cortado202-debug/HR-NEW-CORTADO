@@ -345,6 +345,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     try {
       let currentUsers = customUsers ? [...customUsers] : [...usersList];
+      const cleanAdminUser = adminUsername.trim() || 'admin';
+      const cleanAdminPass = adminPassword.trim() || '123';
+      const cleanAdminPin = '1234';
       
       if (customUsers) {
         // If coming from Users Tab, find if admin credentials were updated there
@@ -356,8 +359,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       } else {
         // If saving from Company / Admin Settings Tab, sync admin details into currentUsers
         const adminIndex = currentUsers.findIndex((u) => u.role === 'admin');
-        const cleanAdminUser = adminUsername.trim() || 'admin';
-        const cleanAdminPass = adminPassword.trim() || '123';
 
         if (adminIndex >= 0) {
           currentUsers[adminIndex] = {
@@ -374,7 +375,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             password: cleanAdminPass,
             displayName: directorName.trim() || 'المدير العام',
             role: 'admin',
-            pin: '1234',
+            pin: cleanAdminPin,
             active: true,
             createdAt: Date.now(),
           });

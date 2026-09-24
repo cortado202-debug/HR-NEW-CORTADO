@@ -1,4 +1,4 @@
-import { AppData, SalaryAdvance, AttendanceRecord, Employee, CompanySettings, SyncEventType } from '../types';
+import { AppData, SalaryAdvance, AttendanceRecord, Employee, CompanySettings, SyncEventType, UserRole } from '../types';
 import { INITIAL_APP_DATA } from '../utils/initialData';
 import { DEFAULT_CORTADO_LOGO } from '../utils/brandLogo';
 import { db } from './firebase';
