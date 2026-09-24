@@ -526,12 +526,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           pin: cleanPin,
           displayName: cleanDisplayName,
         });
+      } else {
+        // Automatically create the matching employee so the account is 100% active in both lists
+        const createdEmp = await onSaveEmployee({
+          name: cleanDisplayName,
+          username: cleanUsername,
+          password: cleanPassword,
+          pin: cleanPin,
+          jobTitle: 'موظف',
+          baseSalary: 3000000,
+          monthlyWorkDays: 26,
+          dailyWorkHours: 8,
+          absentDeductionRate: 1.0,
+          active: true,
+        });
+        if (createdEmp?.id) {
+          const userIdx = updatedList.findIndex((u) => u.username === cleanUsername);
+          if (userIdx >= 0) {
+            updatedList[userIdx].employeeId = createdEmp.id;
+          }
+          await syncService.updateCredentials({
+            role: 'employee',
+            employeeId: createdEmp.id,
+            username: cleanUsername,
+            password: cleanPassword,
+            pin: cleanPin,
+            displayName: cleanDisplayName,
+          });
+        }
       }
     } else if (uRole === 'admin') {
       setAdminUsername(cleanUsername);
       setAdminPassword(cleanPassword);
       await syncService.updateCredentials({
         role: 'admin',
+        id: editingUser?.id,
         username: cleanUsername,
         password: cleanPassword,
         pin: cleanPin,
@@ -540,6 +569,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } else if (uRole === 'supervisor') {
       await syncService.updateCredentials({
         role: 'supervisor',
+        id: editingUser?.id,
         username: cleanUsername,
         password: cleanPassword,
         pin: cleanPin,

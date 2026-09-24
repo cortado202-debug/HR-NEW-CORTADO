@@ -82,12 +82,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       }
     };
 
+    // 2. Fetch full fresh state from server so any new employees or password changes are immediately active
+    const refreshData = async () => {
+      try {
+        const res = await fetch(`/api/data?t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const freshData = await res.json();
+          if (freshData) {
+            syncService.applyServerFullState(freshData);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+
     loadBranding();
+    refreshData();
 
-    // 2. High-speed polling fallback (every 1.5s) to guarantee zero-latency updates on all mobile & desktop screens
-    const pollInterval = setInterval(loadBranding, 1500);
+    // 3. High-speed polling fallback to guarantee zero-latency updates on all mobile & desktop screens
+    const pollInterval = setInterval(() => {
+      loadBranding();
+      refreshData();
+    }, 2000);
 
-    // 3. Listen to syncService state
+    // 4. Listen to syncService state
     const unsubSync = syncService.subscribe((newData) => {
       if (newData?.settings) {
         setLiveBranding({
@@ -97,7 +116,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       }
     });
 
-    // 4. Listen to browser broadcast events
+    // 5. Listen to browser broadcast events
     const handleBrandingEvent = (e: any) => {
       if (e?.detail) {
         setLiveBranding({
@@ -114,7 +133,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     };
     window.addEventListener('cortado_branding_updated', handleBrandingEvent);
 
-    // 5. Direct real-time Firebase Firestore listener so anyone opening the site instantly gets the latest company branding
+    // 6. Direct real-time Firebase Firestore listener if available
     let unsubFirestore: (() => void) | null = null;
     try {
       const brandingDocRef = doc(db, 'company_app_data', 'company_branding');

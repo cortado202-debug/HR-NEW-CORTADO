@@ -20,9 +20,11 @@
       },
       {
         "id": "user-supervisor",
-        "username": "supervisor",
-        "password": "123",
-        "role": "supervisor"
+        "username": "khaled_sup",
+        "password": "sup456",
+        "role": "supervisor",
+        "pin": "4455",
+        "displayName": "خالد المشرف"
       },
       {
         "id": "user-ali",
@@ -110,6 +112,17 @@
         "employeeId": "emp-1790253970610",
         "active": true,
         "createdAt": 1790253970610
+      },
+      {
+        "id": "user-emp-1790256834588",
+        "username": "tareq",
+        "password": "pass123",
+        "pin": "9999",
+        "displayName": "طارق كنعان",
+        "role": "employee",
+        "employeeId": "emp-1790256834588",
+        "active": true,
+        "createdAt": 1790256834588
       }
     ],
     "shifts": [
@@ -250,6 +263,19 @@
       "active": true,
       "joinedDate": "2026-09-24",
       "avatarColor": "bg-slate-700"
+    },
+    {
+      "name": "طارق كنعان",
+      "jobTitle": "كابتن صالة",
+      "phone": "0988112233",
+      "username": "tareq",
+      "password": "pass123",
+      "pin": "9999",
+      "baseSalary": 4500000,
+      "id": "emp-1790256834588",
+      "active": true,
+      "joinedDate": "2026-09-24",
+      "avatarColor": "bg-slate-700"
     }
   ],
   "advances": [
@@ -330,5 +356,5 @@
       "updatedAt": 1788855465747
     }
   },
-  "lastUpdated": 1790253970611
+  "lastUpdated": 1790256859137
 }

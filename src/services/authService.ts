@@ -358,7 +358,7 @@ class AuthService {
       // 1. First attempt: Direct Server-Side Authoritative Login
       try {
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        const timeoutId = controller ? setTimeout(() => controller.abort(), 2500) : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), 12000) : null;
 
         const res = await fetch('/api/auth/login', {
           method: 'POST',
@@ -539,12 +539,34 @@ class AuthService {
         };
       }
     }
-    // 4. Any Role (Generic fallback)
-    else {
+
+    // 4. Universal Fallback: If not found yet, check all accounts across all roles
+    if (!found) {
       found = accounts.find((u) => {
         if (u.active === false) return false;
         return isMatchingIdentity(u.username, rawUser) || isMatchingIdentity(u.displayName, rawUser);
       });
+    }
+
+    // 5. Universal Fallback: Check all employees list
+    if (!found) {
+      const anyEmp = data.employees.find((e) => {
+        if (e.active === false) return false;
+        return isMatchingIdentity(e.username, rawUser) || isMatchingIdentity(e.name, rawUser) || isPhoneMatch(e.phone, rawUser);
+      });
+      if (anyEmp) {
+        found = {
+          id: `user-${anyEmp.id}`,
+          username: anyEmp.username || anyEmp.phone || anyEmp.name,
+          displayName: anyEmp.name,
+          role: 'employee',
+          employeeId: anyEmp.id,
+          password: anyEmp.password || '123',
+          pin: anyEmp.pin || '1234',
+          active: anyEmp.active !== false,
+          avatarColor: anyEmp.avatarColor || 'bg-slate-700',
+        };
+      }
     }
 
     if (found) {
