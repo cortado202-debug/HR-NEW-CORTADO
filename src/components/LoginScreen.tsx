@@ -18,9 +18,7 @@ import {
   LogIn, 
   CheckCircle2, 
   QrCode, 
-  ChevronDown,
-  UserCheck,
-  Search
+  ChevronDown
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -34,14 +32,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   employees,
   onLoginSuccess,
 }) => {
-  // Synchronized Employee List for reliable mobile authentication
-  const [liveEmployees, setLiveEmployees] = useState<Employee[]>(() => {
-    if (employees && employees.length > 0) return employees;
-    const initialSync = syncService.getData()?.employees;
-    return initialSync && initialSync.length > 0 ? initialSync : [];
-  });
-  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
-
   // 1. Employee Form (Top)
   const [empUsername, setEmpUsername] = useState<string>('');
   const [empPassword, setEmpPassword] = useState<string>('');
@@ -156,55 +146,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       if (unsubFirestore) unsubFirestore();
     };
   }, []);
-
-  // Synchronize employees continuously to guarantee employee list is always present on mobile
-  useEffect(() => {
-    if (employees && employees.length > 0) {
-      setLiveEmployees(employees);
-    }
-  }, [employees]);
-
-  useEffect(() => {
-    const unsubEmployees = syncService.subscribe((newData) => {
-      if (newData?.employees && newData.employees.length > 0) {
-        setLiveEmployees(newData.employees);
-      }
-    });
-
-    // Also fetch initial data if list is empty
-    if (liveEmployees.length === 0) {
-      fetch(`/api/data?t=${Date.now()}`)
-        .then((r) => r.json())
-        .then((d) => {
-          if (d?.employees && d.employees.length > 0) {
-            setLiveEmployees(d.employees);
-          }
-        })
-        .catch(() => {});
-    }
-
-    return () => unsubEmployees();
-  }, []);
-
-  const handleSelectEmp = (empId: string) => {
-    setSelectedEmpId(empId);
-    setErrorMessage(null);
-    if (!empId) {
-      setEmpUsername('');
-      return;
-    }
-    const emp = liveEmployees.find((e) => e.id === empId);
-    if (emp) {
-      setEmpUsername(emp.name);
-      // Auto-focus password input
-      setTimeout(() => {
-        const pwdInput = document.getElementById('password-employee');
-        if (pwdInput) {
-          pwdInput.focus();
-        }
-      }, 50);
-    }
-  };
 
   const handleToggleSection = (role: UserRole) => {
     setActiveRoleSection(role);
@@ -414,49 +355,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     autoComplete="on"
                     className="px-4 pb-4 sm:px-5 sm:pb-5 pt-2 border-t border-emerald-100/80 bg-white flex flex-col gap-3.5"
                   >
-                    {/* Fast Employee Dropdown Picker */}
-                    {liveEmployees.length > 0 && (
-                      <div className="flex flex-col gap-1.5 p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
-                        <label htmlFor="select-employee-quick" className="text-xs font-bold text-emerald-950 flex items-center justify-between">
-                          <span className="flex items-center gap-1.5">
-                            <UserCheck className="w-4 h-4 text-emerald-600" />
-                            <span>اختيار اسمك مباشرة من القائمة (أسهل للهاتف):</span>
-                          </span>
-                          <span className="text-[10px] text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full font-bold">
-                            {liveEmployees.length} موظف
-                          </span>
-                        </label>
-                        <select
-                          id="select-employee-quick"
-                          value={selectedEmpId}
-                          onChange={(e) => handleSelectEmp(e.target.value)}
-                          className="w-full bg-white border border-emerald-200 text-slate-900 text-xs sm:text-sm font-semibold rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600 outline-none transition-all cursor-pointer shadow-2xs"
-                        >
-                          <option value="">-- اضغط هنا لاختيار اسمك من قائمة الموظفين --</option>
-                          {liveEmployees
-                            .filter((e) => e.active !== false)
-                            .map((emp) => (
-                              <option key={emp.id} value={emp.id}>
-                                {emp.name} {emp.jobTitle ? `(${emp.jobTitle})` : ''} {emp.phone ? ` - ${emp.phone}` : ''}
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Divider */}
-                    <div className="flex items-center gap-2 my-0.5">
-                      <div className="h-px bg-slate-200 flex-1" />
-                      <span className="text-[10px] text-slate-400 font-bold">أو كتابة الاسم يدوياً</span>
-                      <div className="h-px bg-slate-200 flex-1" />
-                    </div>
-
                     {/* Employee Username Input */}
                     <div className="flex flex-col gap-1">
                       <label htmlFor="username-employee" className="text-xs font-bold text-slate-700 flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
                           <User className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>اسم الموظف أو رقم هاتفه</span>
+                          <span>اسم المستخدم أو رقم الهاتف</span>
                         </span>
                       </label>
                       <input
@@ -464,47 +368,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         name="username"
                         type="text"
                         autoComplete="username"
-                        placeholder="أدخل اسمك أو كنيتك أو رقم هاتفك"
+                        placeholder="أدخل اسم المستخدم أو رقم الهاتف"
                         value={empUsername}
-                        onChange={(e) => {
-                          setEmpUsername(e.target.value);
-                          setSelectedEmpId('');
-                        }}
+                        onChange={(e) => setEmpUsername(e.target.value)}
                         required
                         className="w-full bg-[#F8FAFC] border border-slate-200 text-slate-900 text-xs sm:text-sm font-medium rounded-xl px-3.5 py-2.5 focus:bg-white focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600 outline-none transition-all"
                       />
-
-                      {/* Live matching suggestions if typing */}
-                      {empUsername.trim().length >= 2 && !selectedEmpId && (
-                        (() => {
-                          const query = empUsername.trim().toLowerCase();
-                          const matches = liveEmployees
-                            .filter((e) => e.active !== false && (
-                              e.name.toLowerCase().includes(query) ||
-                              (e.phone && e.phone.includes(query)) ||
-                              (e.username && e.username.toLowerCase().includes(query))
-                            ))
-                            .slice(0, 3);
-
-                          if (matches.length === 0) return null;
-
-                          return (
-                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                              <span className="text-[10px] text-slate-400">هل تقصد:</span>
-                              {matches.map((m) => (
-                                <button
-                                  key={m.id}
-                                  type="button"
-                                  onClick={() => handleSelectEmp(m.id)}
-                                  className="text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 rounded-md px-2 py-0.5 font-bold cursor-pointer transition-colors"
-                                >
-                                  {m.name}
-                                </button>
-                              ))}
-                            </div>
-                          );
-                        })()
-                      )}
                     </div>
 
                     {/* Employee Password Input with Eye Toggle */}
@@ -512,7 +381,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                       <label htmlFor="password-employee" className="text-xs font-bold text-slate-700 flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
                           <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>كلمة المرور (أو رمز PIN)</span>
+                          <span>كلمة المرور</span>
                         </span>
                       </label>
                       <div className="relative flex items-center">
@@ -521,7 +390,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                           name="password"
                           type={showEmpPassword ? 'text' : 'password'}
                           autoComplete="current-password"
-                          placeholder="أدخل كلمة المرور (الافتراضية: 123)"
+                          placeholder="••••••••"
                           value={empPassword}
                           onChange={(e) => setEmpPassword(e.target.value)}
                           required
@@ -537,15 +406,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         >
                           {showEmpPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
-                      </div>
-                    </div>
-
-                    {/* Default password note for employees */}
-                    <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-start gap-2 text-[11px] text-emerald-950">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <div className="leading-relaxed">
-                        <span className="font-bold">ملاحظة للموظف: </span>
-                        <span>كلمة المرور الافتراضية هي <code className="bg-white px-1.5 py-0.5 rounded border border-emerald-300 font-bold font-mono text-emerald-800">123</code> أو PIN: <code className="bg-white px-1.5 py-0.5 rounded border border-emerald-300 font-bold font-mono text-emerald-800">1234</code> ما لم تحدد الإدارة كلمة سر خاصة بك.</span>
                       </div>
                     </div>
 
