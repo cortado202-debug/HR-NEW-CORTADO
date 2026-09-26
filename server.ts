@@ -119,12 +119,130 @@ const DEFAULT_ACCOUNTS = [
     active: true,
     createdAt: Date.now(),
   },
+  {
+    id: 'user-khalid',
+    username: 'khalid',
+    password: 'secretkhalid',
+    displayName: 'خالد النجار',
+    role: 'employee',
+    employeeId: 'emp-1790257743651-6dsg',
+    pin: '1234',
+    active: true,
+  },
+  {
+    id: 'user-emp-1',
+    username: '0944123456',
+    password: '123',
+    pin: '1234',
+    displayName: 'محمد خالد الحلبي',
+    role: 'employee',
+    employeeId: 'emp-1',
+    active: true,
+  },
+  {
+    id: 'user-emp-2',
+    username: '0933789012',
+    password: '123',
+    pin: '1234',
+    displayName: 'سامر أحمد النجار',
+    role: 'employee',
+    employeeId: 'emp-2',
+    active: true,
+  },
+  {
+    id: 'user-emp-3',
+    username: '0955432109',
+    password: '123',
+    pin: '1234',
+    displayName: 'عمر ياسين الكردي',
+    role: 'employee',
+    employeeId: 'emp-3',
+    active: true,
+  },
+  {
+    id: 'user-emp-4',
+    username: '0988654321',
+    password: '123',
+    pin: '1234',
+    displayName: 'ريم طارق الشامي',
+    role: 'employee',
+    employeeId: 'emp-4',
+    active: true,
+  },
+  {
+    id: 'user-emp-5',
+    username: '0966543210',
+    password: '123',
+    pin: '1234',
+    displayName: 'باسل محمود إدريس',
+    role: 'employee',
+    employeeId: 'emp-5',
+    active: true,
+  },
+  {
+    id: 'user-emp-6',
+    username: '0999876543',
+    password: '123',
+    pin: '1234',
+    displayName: 'طارق عبد الله مراد',
+    role: 'employee',
+    employeeId: 'emp-6',
+    active: true,
+  },
+  {
+    id: 'user-emp-1790253674477',
+    username: 'ali',
+    password: 'mysecretpass',
+    pin: '1234',
+    displayName: 'علي حسن',
+    role: 'employee',
+    employeeId: 'emp-1790253674477',
+    active: true,
+  },
+  {
+    id: 'user-emp-1790253970610',
+    username: 'samer',
+    password: 'custompassword123',
+    pin: '7788',
+    displayName: 'سامر العلي',
+    role: 'employee',
+    employeeId: 'emp-1790253970610',
+    active: true,
+  },
+  {
+    id: 'user-emp-1790256834588',
+    username: 'tareq',
+    password: 'pass123',
+    pin: '9999',
+    displayName: 'طارق كنعان',
+    role: 'employee',
+    employeeId: 'emp-1790256834588',
+    active: true,
+  },
+  {
+    id: 'user-emp-1790257732859',
+    username: 'mahmoud',
+    password: 'password999',
+    pin: '1234',
+    displayName: 'محمود الأحمد',
+    role: 'employee',
+    employeeId: 'emp-1790257732859',
+    active: true,
+  },
 ];
 
 // String & Digit Normalization for resilient login & matching
-function toAscii(str?: string | null): string {
+function cleanUnicode(str?: string | null): string {
   if (!str) return '';
   return String(str)
+    // Strip invisible characters, direction formatting, zero-width chars (common in WhatsApp/SMS pastes)
+    .replace(/[\u200B-\u200F\uFEFF\u00A0\u202A-\u202E\u2060-\u206F]/g, ' ')
+    .trim();
+}
+
+function toAscii(str?: string | null): string {
+  if (!str) return '';
+  return cleanUnicode(str)
     .replace(/[٠۰]/g, '0')
     .replace(/[١۱]/g, '1')
     .replace(/[٢۲]/g, '2')
@@ -138,12 +256,38 @@ function toAscii(str?: string | null): string {
     .trim();
 }
 
+function verifyPasswordMatch(validCandidatePasswords: (string | undefined | null)[], inputPassword: string): boolean {
+  if (!inputPassword) return false;
+  const cleanInput = cleanUnicode(inputPassword).trim();
+  const asciiInput = toAscii(cleanInput).trim();
+  const lowerInput = cleanInput.toLowerCase();
+  const lowerAsciiInput = asciiInput.toLowerCase();
+
+  for (const rawCandidate of validCandidatePasswords) {
+    if (!rawCandidate) continue;
+    const cand = cleanUnicode(String(rawCandidate)).trim();
+    if (!cand) continue;
+    const asciiCand = toAscii(cand).trim();
+    const lowerCand = cand.toLowerCase();
+    const lowerAsciiCand = asciiCand.toLowerCase();
+
+    // 1. Direct match
+    if (cand === cleanInput) return true;
+    // 2. ASCII digits match
+    if (asciiCand === asciiInput) return true;
+    // 3. Case-insensitive
+    if (lowerCand === lowerInput) return true;
+    // 4. Case-insensitive + ASCII digits
+    if (lowerAsciiCand === lowerAsciiInput) return true;
+  }
+  return false;
+}
+
 function normalizeText(str?: string | null): string {
   if (!str) return '';
   return toAscii(str)
     .trim()
     .toLowerCase()
-    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ')
     .replace(/[\u064B-\u065F\u0670]/g, '')
     .replace(/\u0640/g, '')
     .replace(/[أإآٱ]/g, 'ا')
@@ -160,9 +304,10 @@ function normalizeText(str?: string | null): string {
 
 function normalizePhone(str?: string | null): string {
   if (!str) return '';
-  const digits = toAscii(str).replace(/\D/g, '');
-  if (digits.startsWith('00963')) return '0' + digits.slice(5);
-  if (digits.startsWith('963')) return '0' + digits.slice(3);
+  let digits = toAscii(str).replace(/\D/g, '');
+  if (digits.startsWith('00963')) digits = digits.slice(5);
+  else if (digits.startsWith('963')) digits = digits.slice(3);
+  if (digits.startsWith('0')) digits = digits.slice(1);
   return digits;
 }
 
@@ -172,12 +317,7 @@ function isPhoneMatch(candidatePhone?: string | null, inputPhone?: string | null
   const i = normalizePhone(inputPhone);
   if (!c || !i) return false;
   if (c === i) return true;
-  const cDigits = toAscii(candidatePhone).replace(/\D/g, '');
-  const iDigits = toAscii(inputPhone).replace(/\D/g, '');
-  if (cDigits && iDigits && cDigits === iDigits) return true;
-  const cLast = cDigits.slice(-8);
-  const iLast = iDigits.slice(-8);
-  if (cLast.length >= 7 && iLast.length >= 7 && cLast === iLast) return true;
+  if (c.length >= 7 && i.length >= 7 && (c.endsWith(i) || i.endsWith(c))) return true;
   return false;
 }
 
@@ -417,6 +557,84 @@ const DEFAULT_DATA = {
       active: true,
       joinedDate: '2024-08-01',
       avatarColor: 'bg-cyan-700',
+    },
+    {
+      id: 'emp-1790253674477',
+      name: 'علي حسن',
+      jobTitle: 'موظف',
+      username: 'ali',
+      password: 'mysecretpass',
+      pin: '1234',
+      baseSalary: 2000000,
+      dailyWorkHours: 8,
+      monthlyWorkDays: 26,
+      absentDeductionRate: 1.0,
+      active: true,
+      joinedDate: '2026-09-24',
+      avatarColor: 'bg-slate-700',
+    },
+    {
+      id: 'emp-1790253970610',
+      name: 'سامر العلي',
+      jobTitle: 'موظف',
+      username: 'samer',
+      password: 'custompassword123',
+      pin: '7788',
+      phone: '0933112233',
+      baseSalary: 1500000,
+      dailyWorkHours: 8,
+      monthlyWorkDays: 26,
+      absentDeductionRate: 1.0,
+      active: true,
+      joinedDate: '2026-09-24',
+      avatarColor: 'bg-slate-700',
+    },
+    {
+      id: 'emp-1790256834588',
+      name: 'طارق كنعان',
+      jobTitle: 'كابتن صالة',
+      phone: '0988112233',
+      username: 'tareq',
+      password: 'pass123',
+      pin: '9999',
+      baseSalary: 4500000,
+      dailyWorkHours: 8,
+      monthlyWorkDays: 26,
+      absentDeductionRate: 1.0,
+      active: true,
+      joinedDate: '2026-09-24',
+      avatarColor: 'bg-slate-700',
+    },
+    {
+      id: 'emp-1790257732859',
+      name: 'محمود الأحمد',
+      jobTitle: 'موظف',
+      phone: '0955112233',
+      username: 'mahmoud',
+      password: 'password999',
+      pin: '1234',
+      baseSalary: 3000000,
+      dailyWorkHours: 8,
+      monthlyWorkDays: 26,
+      absentDeductionRate: 1.0,
+      active: true,
+      joinedDate: '2026-09-24',
+      avatarColor: 'bg-slate-700',
+    },
+    {
+      id: 'emp-1790257743651-6dsg',
+      name: 'خالد النجار',
+      jobTitle: 'موظف',
+      username: 'khalid',
+      password: 'secretkhalid',
+      pin: '1234',
+      baseSalary: 3000000,
+      dailyWorkHours: 8,
+      monthlyWorkDays: 26,
+      absentDeductionRate: 1.0,
+      active: true,
+      joinedDate: '2026-09-24',
+      avatarColor: 'bg-slate-700',
     }
   ],
   advances: [
@@ -813,200 +1031,167 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   // Ensure store is completely synced
   syncStoreUsersAndEmployees(memoryStore);
 
-  const rawUser = String(username).trim();
-  const rawPass = String(password).trim();
-  const lowerUser = rawUser.toLowerCase();
-  const normUser = normalizeText(rawUser);
-  const asciiPass = toAscii(rawPass);
+  const cleanUser = cleanUnicode(String(username)).trim();
+  const cleanPass = cleanUnicode(String(password)).trim();
+  const lowerUser = cleanUser.toLowerCase();
+  const normUser = normalizeText(cleanUser);
 
   const users: any[] = Array.isArray(memoryStore.settings?.users) ? memoryStore.settings.users : [];
   const employees: any[] = Array.isArray(memoryStore.employees) ? memoryStore.employees : [];
 
-  let matchedUser: any = null;
-  const validPasswords: string[] = [];
+  // Helper to score candidate employee identity match
+  const scoreEmp = (emp: any) => scoreEmployeeMatch(emp, cleanUser);
+  // Helper to score candidate user identity match
+  const scoreUsr = (usr: any) => scoreUserMatch(usr, cleanUser);
 
-  // Helper to score a candidate employee
-  const scoreEmp = (emp: any) => scoreEmployeeMatch(emp, rawUser);
-  // Helper to score a candidate user
-  const scoreUsr = (usr: any) => scoreUserMatch(usr, rawUser);
+  interface AuthCandidate {
+    type: 'employee' | 'user';
+    score: number;
+    passMatch: boolean;
+    role: string;
+    user: any;
+    employee?: any;
+    passwords: string[];
+  }
 
-  // 1. Employee Matching
-  const attemptMatchEmployee = () => {
-    const scoredEmployees = employees
-      .map((e: any) => ({ emp: e, score: scoreEmp(e) }))
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
+  const candidates: AuthCandidate[] = [];
 
-    const scoredUsers = users
-      .filter((u: any) => u.role === 'employee')
-      .map((u: any) => ({ user: u, score: scoreUsr(u) }))
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
+  // 1. Evaluate all employees
+  for (const emp of employees) {
+    if (emp.active === false) continue;
+    const score = scoreEmp(emp);
+    if (score > 0) {
+      const linkedUser = users.find(
+        (u: any) =>
+          u.employeeId === emp.id ||
+          (u.role === 'employee' && (
+            (u.username && u.username.toLowerCase() === (emp.username || '').toLowerCase()) ||
+            (u.displayName && normalizeText(u.displayName) === normalizeText(emp.name))
+          ))
+      );
 
-    const bestEmp = scoredEmployees[0]?.emp;
-    const bestUser = scoredUsers[0]?.user;
+      const candidatePasswords: string[] = [
+        emp.password,
+        emp.pin,
+        linkedUser?.password,
+        linkedUser?.pin,
+        '123',
+        '1234',
+      ].filter(Boolean).map(String);
 
-    if (bestEmp || bestUser) {
-      const empScore = scoredEmployees[0]?.score || 0;
-      const userScore = scoredUsers[0]?.score || 0;
+      const passMatch = verifyPasswordMatch(candidatePasswords, cleanPass);
 
-      const finalEmp = empScore >= userScore ? bestEmp : (bestUser?.employeeId ? employees.find((e: any) => e.id === bestUser.employeeId) || bestEmp : bestEmp);
-      const finalUser = userScore > empScore ? bestUser : (bestEmp ? users.find((u: any) => u.employeeId === bestEmp.id) || bestUser : bestUser);
-      const finalEmpId = finalEmp?.id || finalUser?.employeeId;
-
-      const passwords: string[] = [];
-      if (finalEmp?.password) passwords.push(String(finalEmp.password).trim());
-      if (finalEmp?.pin) passwords.push(String(finalEmp.pin).trim());
-      if (finalUser?.password) passwords.push(String(finalUser.password).trim());
-      if (finalUser?.pin) passwords.push(String(finalUser.pin).trim());
-      // Default fallbacks
-      passwords.push('123', '1234');
-
-      return {
+      candidates.push({
+        type: 'employee',
+        score,
+        passMatch,
+        role: 'employee',
+        employee: emp,
         user: {
-          id: finalUser?.id || `user-${finalEmpId || Date.now()}`,
-          username: finalUser?.username || finalEmp?.username || finalEmp?.phone || finalEmp?.name || rawUser,
-          displayName: finalEmp?.name || finalUser?.displayName || 'موظف',
+          id: linkedUser?.id || `user-${emp.id}`,
+          username: emp.username || linkedUser?.username || emp.phone || emp.name,
+          displayName: emp.name || linkedUser?.displayName || 'موظف',
           role: 'employee',
-          employeeId: finalEmpId,
-          password: finalEmp?.password || finalUser?.password || '123',
-          pin: finalEmp?.pin || finalUser?.pin || '1234',
-          active: (finalEmp ? finalEmp.active !== false : true) && (finalUser ? finalUser.active !== false : true),
-          avatarColor: finalEmp?.avatarColor || 'bg-slate-700',
-          createdAt: finalUser?.createdAt || Date.now(),
+          employeeId: emp.id,
+          password: emp.password || linkedUser?.password || '123',
+          pin: emp.pin || linkedUser?.pin || '1234',
+          active: true,
+          avatarColor: emp.avatarColor || 'bg-slate-700',
+          createdAt: linkedUser?.createdAt || Date.now(),
         },
-        passwords,
-      };
+        passwords: candidatePasswords,
+      });
     }
-    return null;
-  };
-
-  // 2. Supervisor Matching (support ALL supervisors in settings.users)
-  const attemptMatchSupervisor = () => {
-    const scoredSupervisors = users
-      .filter((u: any) => u.role === 'supervisor')
-      .map((u: any) => ({ user: u, score: scoreUsr(u) }))
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
-
-    if (scoredSupervisors.length > 0) {
-      const bestSup = scoredSupervisors[0].user;
-      const passwords: string[] = [];
-      if (bestSup.password) passwords.push(String(bestSup.password).trim());
-      if (bestSup.pin) passwords.push(String(bestSup.pin).trim());
-      passwords.push('123', '5678');
-      return { user: bestSup, passwords };
-    }
-
-    const supKeywords = ['supervisor', 'مشرف', 'المشرف', 'المشرف الميداني'];
-    const isKeyword = supKeywords.some((k) => normalizeText(k) === normUser || k.toLowerCase() === lowerUser);
-    if (isKeyword) {
-      const defaultSup = users.find((u: any) => u.role === 'supervisor' && u.active !== false) || {
-        id: 'user-supervisor',
-        username: 'supervisor',
-        displayName: 'المشرف الميداني',
-        role: 'supervisor',
-        password: '123',
-        pin: '5678',
-        active: true,
-      };
-      const passwords = [String(defaultSup.password || '123').trim(), String(defaultSup.pin || '5678').trim()];
-      return { user: defaultSup, passwords };
-    }
-    return null;
-  };
-
-  // 3. Admin Matching (support ALL admins in settings.users)
-  const attemptMatchAdmin = () => {
-    const scoredAdmins = users
-      .filter((u: any) => u.role === 'admin')
-      .map((u: any) => ({ user: u, score: scoreUsr(u) }))
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
-
-    if (scoredAdmins.length > 0) {
-      const bestAdmin = scoredAdmins[0].user;
-      const passwords: string[] = [];
-      if (bestAdmin.password) passwords.push(String(bestAdmin.password).trim());
-      if (bestAdmin.pin) passwords.push(String(bestAdmin.pin).trim());
-      passwords.push('123', '1234');
-      return { user: bestAdmin, passwords };
-    }
-
-    const adminKeywords = ['admin', 'مدير', 'المدير', 'المدير العام', 'zead', 'ziad', 'زياد', 'director', 'cortado', 'كورتادو'];
-    const directorNorm = normalizeText(memoryStore.settings?.directorName);
-    const isKeyword = adminKeywords.some((k) => normalizeText(k) === normUser || k.toLowerCase() === lowerUser) || (directorNorm && directorNorm === normUser);
-    if (isKeyword) {
-      const defaultAdmin = users.find((u: any) => u.role === 'admin' && u.active !== false) || {
-        id: 'user-admin',
-        username: 'admin',
-        displayName: memoryStore.settings?.directorName || 'المدير العام',
-        role: 'admin',
-        password: '123',
-        pin: '1234',
-        active: true,
-      };
-      const passwords = [String(defaultAdmin.password || '123').trim(), String(defaultAdmin.pin || '1234').trim()];
-      return { user: defaultAdmin, passwords };
-    }
-    return null;
-  };
-
-  // Execute matching according to requested role priority, but seamlessly fallback across all roles
-  let matchResult: { user: any; passwords: string[] } | null = null;
-
-  if (role === 'employee') {
-    matchResult = attemptMatchEmployee() || attemptMatchSupervisor() || attemptMatchAdmin();
-  } else if (role === 'supervisor') {
-    matchResult = attemptMatchSupervisor() || attemptMatchEmployee() || attemptMatchAdmin();
-  } else if (role === 'admin') {
-    matchResult = attemptMatchAdmin() || attemptMatchSupervisor() || attemptMatchEmployee();
-  } else {
-    // Unspecified role: try employee -> supervisor -> admin
-    matchResult = attemptMatchEmployee() || attemptMatchSupervisor() || attemptMatchAdmin();
   }
 
-  if (matchResult) {
-    matchedUser = matchResult.user;
-    validPasswords.push(...matchResult.passwords);
+  // 2. Evaluate all user accounts
+  for (const usr of users) {
+    if (usr.active === false) continue;
+    let score = scoreUsr(usr);
+
+    // Keywords check for generic role terms
+    if (score === 0) {
+      if (usr.role === 'admin') {
+        const adminKeywords = ['admin', 'مدير', 'المدير', 'المدير العام', 'zead', 'ziad', 'زياد', 'director', 'cortado', 'كورتادو'];
+        const directorNorm = normalizeText(memoryStore.settings?.directorName);
+        if (adminKeywords.some((k) => normalizeText(k) === normUser || k.toLowerCase() === lowerUser) || (directorNorm && directorNorm === normUser)) {
+          score = 70;
+        }
+      } else if (usr.role === 'supervisor') {
+        const supKeywords = ['supervisor', 'مشرف', 'المشرف', 'المشرف الميداني'];
+        if (supKeywords.some((k) => normalizeText(k) === normUser || k.toLowerCase() === lowerUser)) {
+          score = 70;
+        }
+      }
+    }
+
+    if (score > 0) {
+      const linkedEmp = usr.employeeId ? employees.find((e: any) => e.id === usr.employeeId) : null;
+      const candidatePasswords: string[] = [
+        usr.password,
+        usr.pin,
+        linkedEmp?.password,
+        linkedEmp?.pin,
+        usr.role === 'employee' ? '123' : null,
+        usr.role === 'employee' ? '1234' : null,
+        usr.role === 'supervisor' ? '5678' : null,
+        usr.role === 'supervisor' ? '123' : null,
+        usr.role === 'admin' ? '123' : null,
+        usr.role === 'admin' ? '1234' : null,
+      ].filter(Boolean).map(String);
+
+      const passMatch = verifyPasswordMatch(candidatePasswords, cleanPass);
+
+      candidates.push({
+        type: 'user',
+        score,
+        passMatch,
+        role: usr.role,
+        user: {
+          ...usr,
+          displayName: usr.displayName || linkedEmp?.name || (usr.role === 'admin' ? 'المدير العام' : 'المشرف الميداني'),
+          employeeId: usr.employeeId || linkedEmp?.id,
+          avatarColor: linkedEmp?.avatarColor || 'bg-slate-700',
+        },
+        employee: linkedEmp,
+        passwords: candidatePasswords,
+      });
+    }
   }
 
-  if (!matchedUser) {
-    return res.status(401).json({
-      success: false,
-      message: 'لم يتم العثور على الحساب، يرجى التأكد من كتابة اسم المستخدم أو رقم الهاتف المسجل في لوحة التحكم بشكل صحيح',
+  // Filter candidates that matched BOTH identity and password
+  const authenticated = candidates.filter((c) => c.passMatch);
+
+  if (authenticated.length > 0) {
+    // Sort by role match priority if role parameter provided, then by score
+    authenticated.sort((a, b) => {
+      const aRoleMatch = role && a.role === role ? 20 : 0;
+      const bRoleMatch = role && b.role === role ? 20 : 0;
+      return (b.score + bRoleMatch) - (a.score + aRoleMatch);
+    });
+
+    const chosen = authenticated[0];
+
+    return res.json({
+      success: true,
+      user: chosen.user,
+      settings: memoryStore.settings,
+      employees: memoryStore.employees,
     });
   }
 
-  // Deduplicate candidate passwords
-  const uniquePasswords = Array.from(new Set(validPasswords.filter(Boolean)));
-  if (uniquePasswords.length === 0) {
-    uniquePasswords.push('123');
-  }
-
-  const isPasswordMatch = uniquePasswords.some((p) => {
-    const pTrim = String(p).trim();
-    const asciiP = toAscii(pTrim);
-    if (pTrim === rawPass) return true;
-    if (asciiP === asciiPass) return true;
-    if (pTrim.toLowerCase() === rawPass.toLowerCase()) return true;
-    if (asciiP.toLowerCase() === asciiPass.toLowerCase()) return true;
-    return false;
-  });
-
-  if (!isPasswordMatch) {
+  // If no candidate had matching password, but some matched identity
+  if (candidates.length > 0) {
     return res.status(401).json({
       success: false,
       message: 'كلمة المرور غير صحيحة، يرجى التحقق وإعادة المحاولة',
     });
   }
 
-  // Return authenticated user along with current full state
-  return res.json({
-    success: true,
-    user: matchedUser,
-    settings: memoryStore.settings,
-    employees: memoryStore.employees,
+  // No identity match
+  return res.status(401).json({
+    success: false,
+    message: 'لم يتم العثور على الحساب، يرجى التأكد من كتابة اسم المستخدم أو رقم الهاتف أو الاسم المسجل في لوحة التحكم بشكل صحيح',
   });
 });
 

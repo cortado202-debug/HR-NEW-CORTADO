@@ -626,7 +626,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
+    const clean = String(text || '').replace(/[\u200B-\u200F\uFEFF\u00A0\u202A-\u202E\u2060-\u206F]/g, ' ').trim();
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(clean);
+    }
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };
