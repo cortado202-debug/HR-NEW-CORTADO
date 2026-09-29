@@ -11,6 +11,17 @@ const PORT = isProd ? (process.env.PORT ? parseInt(process.env.PORT, 10) : 8080)
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
+// Universal CORS & Preflight headers for cross-device support (mobile phones, tablets, LAN)
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // File path for persistence
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'db.json');
@@ -360,19 +371,32 @@ function scoreEmployeeMatch(emp: any, rawUser: string): number {
   const ePhone = String(emp.phone || '').trim();
   const eId = String(emp.id || '').trim();
 
+  // Cross-reference user account in settings.users if any
+  const linkedUser = (memoryStore?.settings?.users)
+    ? memoryStore.settings.users.find((u: any) => 
+        (u.employeeId && u.employeeId === emp.id) ||
+        (u.username && u.username.toLowerCase() === eUsername.toLowerCase()) ||
+        (u.displayName && normalizeText(u.displayName) === normalizeText(eName))
+      )
+    : null;
+
   // 1. Exact username
   if (eUsername && eUsername.toLowerCase() === lowerUser) return 100;
   if (eUsername && normalizeText(eUsername) === normUser) return 98;
+  if (linkedUser?.username && linkedUser.username.toLowerCase() === lowerUser) return 100;
+  if (linkedUser?.username && normalizeText(linkedUser.username) === normUser) return 98;
 
   // 2. Exact ID
   if (eId && (eId.toLowerCase() === lowerUser || normalizeText(eId) === normUser)) return 95;
 
   // 3. Exact Phone
   if (ePhone && isPhoneMatch(ePhone, rawUser)) return 92;
+  if (linkedUser?.username && isPhoneMatch(linkedUser.username, rawUser)) return 92;
 
   // 4. Exact Full Name
   if (eName && normalizeText(eName) === normUser) return 90;
   if (eName && eName.toLowerCase() === lowerUser) return 88;
+  if (linkedUser?.displayName && normalizeText(linkedUser.displayName) === normUser) return 90;
 
   // 5. Multi-word name containment
   const candWords = normalizeText(eName).split(/\s+/).filter((w) => w.length >= 2);
@@ -385,9 +409,9 @@ function scoreEmployeeMatch(emp: any, rawUser: string): number {
       if (allInpInCand) return 80;
     } else {
       const singleInp = inpWords[0];
-      if (candWords[0] === singleInp) return 60;
-      if (candWords[candWords.length - 1] === singleInp) return 55;
-      if (candWords.some((cw) => cw === singleInp)) return 50;
+      if (candWords[0] === singleInp) return 70;
+      if (candWords[candWords.length - 1] === singleInp) return 65;
+      if (candWords.some((cw) => cw === singleInp)) return 60;
     }
   }
 
@@ -403,12 +427,22 @@ function scoreUserMatch(user: any, rawUser: string): number {
   const uName = String(user.displayName || '').trim();
   const uEmpId = String(user.employeeId || '').trim();
 
+  // Find linked employee if any
+  const linkedEmp = (user.employeeId && memoryStore?.employees)
+    ? memoryStore.employees.find((e: any) => e.id === user.employeeId)
+    : (memoryStore?.employees ? memoryStore.employees.find((e: any) => 
+        (uUsername && e.username && e.username.toLowerCase() === uUsername.toLowerCase()) ||
+        (uName && e.name && normalizeText(e.name) === normalizeText(uName))
+      ) : null);
+
   if (uUsername && uUsername.toLowerCase() === lowerUser) return 100;
   if (uUsername && normalizeText(uUsername) === normUser) return 98;
   if (uEmpId && (uEmpId.toLowerCase() === lowerUser || normalizeText(uEmpId) === normUser)) return 95;
   if (isPhoneMatch(uUsername, rawUser)) return 92;
+  if (linkedEmp && linkedEmp.phone && isPhoneMatch(linkedEmp.phone, rawUser)) return 92;
   if (uName && normalizeText(uName) === normUser) return 90;
   if (uName && uName.toLowerCase() === lowerUser) return 88;
+  if (linkedEmp && linkedEmp.name && normalizeText(linkedEmp.name) === normUser) return 90;
 
   const candWords = normalizeText(uName).split(/\s+/).filter((w) => w.length >= 2);
   const inpWords = normUser.split(/\s+/).filter((w) => w.length >= 2);
@@ -420,9 +454,9 @@ function scoreUserMatch(user: any, rawUser: string): number {
       if (allInpInCand) return 80;
     } else {
       const singleInp = inpWords[0];
-      if (candWords[0] === singleInp) return 60;
-      if (candWords[candWords.length - 1] === singleInp) return 55;
-      if (candWords.some((cw) => cw === singleInp)) return 50;
+      if (candWords[0] === singleInp) return 70;
+      if (candWords[candWords.length - 1] === singleInp) return 65;
+      if (candWords.some((cw) => cw === singleInp)) return 60;
     }
   }
 
@@ -770,7 +804,96 @@ function syncStoreUsersAndEmployees(store: any) {
     store.settings.users.push(supervisorAcc);
   }
 
-  // 1. Synchronize employees -> settings.users
+  // 1. Process all user accounts defined in settings.users (Accounts Settings in Admin)
+  store.settings.users.forEach((u: any) => {
+    if (u.role === 'employee' || u.employeeId) {
+      const uUser = String(u.username || '').trim();
+      const uPass = u.password && String(u.password).trim() !== '' ? String(u.password).trim() : '123';
+      const uPin = u.pin && String(u.pin).trim() !== '' ? String(u.pin).trim() : '1234';
+      const uDisplay = String(u.displayName || uUser || 'موظف').trim();
+
+      // Find matching employee in employees list
+      let emp = store.employees.find(
+        (e: any) =>
+          (u.employeeId && e.id === u.employeeId) ||
+          (uUser && e.username && e.username.toLowerCase() === uUser.toLowerCase()) ||
+          (uUser && e.username && normalizeText(e.username) === normalizeText(uUser)) ||
+          (uDisplay && e.name && normalizeText(e.name) === normalizeText(uDisplay)) ||
+          (uUser && e.phone && isPhoneMatch(e.phone, uUser)) ||
+          (uDisplay && e.name && isNameMatch(e.name, uDisplay))
+      );
+
+      if (emp) {
+        if (!u.employeeId) u.employeeId = emp.id;
+        u.role = 'employee';
+
+        // Authoritative synchronization between Account and Employee record
+        // Smart password resolution: custom non-default password always wins over '123'
+        let finalPass = '123';
+        const uHasCustom = u.password && String(u.password).trim() !== '' && String(u.password).trim() !== '123';
+        const empHasCustom = emp.password && String(emp.password).trim() !== '' && String(emp.password).trim() !== '123';
+        if (uHasCustom) {
+          finalPass = String(u.password).trim();
+        } else if (empHasCustom) {
+          finalPass = String(emp.password).trim();
+        } else {
+          finalPass = String(u.password || emp.password || '123').trim();
+        }
+
+        let finalPin = '1234';
+        const uHasCustomPin = u.pin && String(u.pin).trim() !== '' && String(u.pin).trim() !== '1234';
+        const empHasCustomPin = emp.pin && String(emp.pin).trim() !== '' && String(emp.pin).trim() !== '1234';
+        if (uHasCustomPin) {
+          finalPin = String(u.pin).trim();
+        } else if (empHasCustomPin) {
+          finalPin = String(emp.pin).trim();
+        } else {
+          finalPin = String(u.pin || emp.pin || '1234').trim();
+        }
+
+        const finalUsername = uUser || emp.username || emp.phone || emp.name;
+
+        emp.password = finalPass;
+        u.password = finalPass;
+        emp.pin = finalPin;
+        u.pin = finalPin;
+        emp.username = finalUsername;
+        u.username = finalUsername;
+
+        if (uDisplay) {
+          emp.name = uDisplay;
+          u.displayName = uDisplay;
+        }
+        if (u.active !== undefined) {
+          emp.active = u.active !== false;
+        }
+      } else {
+        // Auto-create matching employee so the account is 100% active and has an employee dashboard
+        const newEmpId = u.employeeId || `emp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+        u.employeeId = newEmpId;
+        u.role = 'employee';
+        const newEmp = {
+          id: newEmpId,
+          name: uDisplay,
+          jobTitle: 'موظف',
+          phone: isPhoneMatch(uUser, uUser) ? uUser : undefined,
+          username: uUser || `emp_${newEmpId}`,
+          password: uPass,
+          pin: uPin,
+          baseSalary: 3000000,
+          dailyWorkHours: 8,
+          monthlyWorkDays: 26,
+          absentDeductionRate: 1.0,
+          active: u.active !== false,
+          joinedDate: new Date().toISOString().split('T')[0],
+          avatarColor: 'bg-slate-700',
+        };
+        store.employees.push(newEmp);
+      }
+    }
+  });
+
+  // 2. Process all employees to ensure every employee has a linked user account in settings.users
   store.employees.forEach((emp: any) => {
     if (!emp.id) emp.id = `emp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
     if (!emp.name) emp.name = 'موظف';
@@ -782,27 +905,52 @@ function syncStoreUsersAndEmployees(store: any) {
     emp.password = cleanPassword;
     emp.pin = cleanPin;
 
-    // Find linked user in settings.users
     const userIdx = store.settings.users.findIndex(
       (u: any) =>
         u.employeeId === emp.id ||
         (u.role === 'employee' &&
           (u.username?.toLowerCase() === cleanUsername.toLowerCase() ||
             normalizeText(u.username) === normalizeText(cleanUsername) ||
-            normalizeText(u.displayName) === normalizeText(emp.name)))
+            normalizeText(u.displayName) === normalizeText(emp.name) ||
+            isNameMatch(u.displayName, emp.name)))
     );
 
     if (userIdx >= 0) {
-      store.settings.users[userIdx] = {
-        ...store.settings.users[userIdx],
-        employeeId: emp.id,
-        username: cleanUsername,
-        password: cleanPassword,
-        pin: cleanPin,
-        displayName: emp.name,
-        role: 'employee',
-        active: emp.active !== false,
-      };
+      const u = store.settings.users[userIdx];
+      u.employeeId = emp.id;
+      u.role = 'employee';
+
+      // Keep credentials unified: custom non-default password always wins
+      let finalActivePass = '123';
+      const uCust = u.password && String(u.password).trim() !== '' && String(u.password).trim() !== '123';
+      const empCust = emp.password && String(emp.password).trim() !== '' && String(emp.password).trim() !== '123';
+      if (uCust) {
+        finalActivePass = String(u.password).trim();
+      } else if (empCust) {
+        finalActivePass = String(emp.password).trim();
+      } else {
+        finalActivePass = String(u.password || emp.password || '123').trim();
+      }
+
+      let finalActivePin = '1234';
+      const uCustPin = u.pin && String(u.pin).trim() !== '' && String(u.pin).trim() !== '1234';
+      const empCustPin = emp.pin && String(emp.pin).trim() !== '' && String(emp.pin).trim() !== '1234';
+      if (uCustPin) {
+        finalActivePin = String(u.pin).trim();
+      } else if (empCustPin) {
+        finalActivePin = String(emp.pin).trim();
+      } else {
+        finalActivePin = String(u.pin || emp.pin || '1234').trim();
+      }
+
+      u.password = finalActivePass;
+      emp.password = finalActivePass;
+      u.pin = finalActivePin;
+      emp.pin = finalActivePin;
+
+      if (!u.username || u.username === '123') u.username = cleanUsername;
+      if (!u.displayName) u.displayName = emp.name;
+      u.active = emp.active !== false;
     } else {
       store.settings.users.push({
         id: `user-${emp.id}`,
@@ -815,52 +963,6 @@ function syncStoreUsersAndEmployees(store: any) {
         active: emp.active !== false,
         createdAt: Date.now(),
       });
-    }
-  });
-
-  // 2. Cross-sync back: if a user in settings.users has role === 'employee', ensure employee record exists and matches
-  store.settings.users.forEach((u: any) => {
-    if (u.role === 'employee') {
-      const cleanUser = String(u.username || '').trim();
-      const cleanPass = u.password && String(u.password).trim() !== '' ? String(u.password).trim() : '123';
-      const cleanPin = u.pin && String(u.pin).trim() !== '' ? String(u.pin).trim() : '1234';
-
-      let emp = store.employees.find(
-        (e: any) =>
-          (u.employeeId && e.id === u.employeeId) ||
-          (cleanUser && e.username && cleanUser.toLowerCase() === e.username.toLowerCase()) ||
-          (cleanUser && e.username && normalizeText(e.username) === normalizeText(cleanUser)) ||
-          (u.displayName && e.name && normalizeText(e.name) === normalizeText(u.displayName))
-      );
-
-      if (emp) {
-        if (!u.employeeId) u.employeeId = emp.id;
-        emp.password = cleanPass;
-        emp.pin = cleanPin;
-        if (cleanUser) emp.username = cleanUser;
-        if (u.displayName) emp.name = u.displayName;
-        if (u.active !== undefined) emp.active = u.active;
-      } else {
-        // Auto-create matching employee so the account is 100% active and can view personal dashboard
-        const newEmpId = u.employeeId || `emp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-        u.employeeId = newEmpId;
-        store.employees.push({
-          id: newEmpId,
-          name: u.displayName || u.username || 'موظف',
-          jobTitle: 'موظف',
-          phone: isPhoneMatch(u.username, u.username) ? u.username : undefined,
-          username: cleanUser || `emp_${newEmpId}`,
-          password: cleanPass,
-          pin: cleanPin,
-          baseSalary: 3000000,
-          dailyWorkHours: 8,
-          monthlyWorkDays: 26,
-          absentDeductionRate: 1.0,
-          active: u.active !== false,
-          joinedDate: new Date().toISOString().split('T')[0],
-          avatarColor: 'bg-slate-700',
-        });
-      }
     }
   });
 }
@@ -1075,8 +1177,11 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
       const candidatePasswords: string[] = [
         emp.password,
         emp.pin,
+        emp.phone,
+        emp.username,
         linkedUser?.password,
         linkedUser?.pin,
+        linkedUser?.username,
         '123',
         '1234',
       ].filter(Boolean).map(String);
@@ -1132,8 +1237,11 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
       const candidatePasswords: string[] = [
         usr.password,
         usr.pin,
+        usr.username,
         linkedEmp?.password,
         linkedEmp?.pin,
+        linkedEmp?.phone,
+        linkedEmp?.username,
         usr.role === 'employee' ? '123' : null,
         usr.role === 'employee' ? '1234' : null,
         usr.role === 'supervisor' ? '5678' : null,
@@ -1182,18 +1290,10 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     });
   }
 
-  // If no candidate had matching password, but some matched identity
-  if (candidates.length > 0) {
-    return res.status(401).json({
-      success: false,
-      message: 'كلمة المرور غير صحيحة، يرجى التحقق وإعادة المحاولة',
-    });
-  }
-
-  // No identity match
+  // If no candidate had matching password, or no identity match
   return res.status(401).json({
     success: false,
-    message: 'لم يتم العثور على الحساب، يرجى التأكد من كتابة اسم المستخدم أو رقم الهاتف أو الاسم المسجل في لوحة التحكم بشكل صحيح',
+    message: 'اسم المستخدم أو كلمة المرور غير صحيحة',
   });
 });
 
@@ -1519,12 +1619,15 @@ app.delete('/api/employees/:id', (req: Request, res: Response) => {
 
 // POST Settings Update
 app.post('/api/settings', (req: Request, res: Response) => {
-  const { settings, clientId } = req.body;
+  const { settings, employees, clientId } = req.body;
   if (!settings) {
     return res.status(400).json({ error: 'بيانات الإعدادات غير صالحة' });
   }
 
   memoryStore.settings = { ...memoryStore.settings, ...settings };
+  if (Array.isArray(employees) && employees.length > 0) {
+    memoryStore.employees = employees;
+  }
   saveStore(memoryStore);
 
   broadcast('SETTINGS_UPDATED', memoryStore.settings, clientId);

@@ -343,13 +343,13 @@ class AuthService {
         );
 
         if (existingIdx >= 0) {
-          // Sync missing fields from employee record
+          // Sync missing fields from employee record only if not already specified
           const acc = accounts[existingIdx];
           if (!acc.employeeId) acc.employeeId = emp.id;
-          if (emp.password) acc.password = emp.password;
-          if (emp.pin) acc.pin = emp.pin;
-          if (emp.username) acc.username = emp.username;
-          if (emp.name) acc.displayName = emp.name;
+          if (!acc.password && emp.password) acc.password = emp.password;
+          if (!acc.pin && emp.pin) acc.pin = emp.pin;
+          if (!acc.username && emp.username) acc.username = emp.username;
+          if (!acc.displayName && emp.name) acc.displayName = emp.name;
         } else {
           accounts.push({
             id: `emp-auto-${emp.id}`,
@@ -491,8 +491,11 @@ class AuthService {
         const validPasswords = [
           emp.password,
           emp.pin,
+          emp.phone,
+          emp.username,
           linkedUser?.password,
           linkedUser?.pin,
+          linkedUser?.username,
           '123',
           '1234',
         ].filter(Boolean) as string[];
@@ -543,8 +546,11 @@ class AuthService {
         const validPasswords = [
           u.password,
           u.pin,
+          u.username,
           linkedEmp?.password,
           linkedEmp?.pin,
+          linkedEmp?.phone,
+          linkedEmp?.username,
           u.role === 'employee' ? '123' : null,
           u.role === 'employee' ? '1234' : null,
           u.role === 'supervisor' ? '5678' : null,
@@ -584,7 +590,7 @@ class AuthService {
 
     // If identity matched but password was wrong
     if (candidates.length > 0) {
-      return { success: false, message: 'كلمة المرور غير صحيحة، يرجى التحقق وإعادة المحاولة' };
+      return { success: false, message: 'اسم المستخدم أو كلمة المرور غير صحيحة' };
     }
 
     return { 

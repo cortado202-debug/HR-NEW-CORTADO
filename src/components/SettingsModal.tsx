@@ -51,6 +51,48 @@ interface SettingsModalProps {
   appData: AppData;
 }
 
+function cleanUnicodeStr(str?: string | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/[\u200B-\u200F\uFEFF\u00A0\u202A-\u202E\u2060-\u206F]/g, ' ')
+    .trim();
+}
+
+function normalizeArabicText(str?: string | null): string {
+  if (!str) return '';
+  return cleanUnicodeStr(str)
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/\u0640/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/[ىي]/g, 'ي')
+    .replace(/ك/g, 'ك')
+    .replace(/ک/g, 'ك')
+    .replace(/ی/g, 'ي')
+    .replace(/ہ/g, 'ه')
+    .replace(/[^\w\s\u0600-\u06FF]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isNameMatch(candidateName?: string | null, inputName?: string | null): boolean {
+  if (!candidateName || !inputName) return false;
+  const c = normalizeArabicText(candidateName);
+  const i = normalizeArabicText(inputName);
+  if (!c || !i) return false;
+  if (c === i) return true;
+  const cw = c.split(/\s+/).filter((w) => w.length >= 2);
+  const iw = i.split(/\s+/).filter((w) => w.length >= 2);
+  if (cw.length > 0 && iw.length > 0) {
+    if (iw.length > 1) {
+      return iw.every((w) => cw.some((cword) => cword === w || cword.startsWith(w)));
+    }
+    return cw.some((cword) => cword === iw[0]);
+  }
+  return false;
+}
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
@@ -163,6 +205,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   // Quick Employee Credentials Viewer Modal State
   const [viewingCredentialsEmp, setViewingCredentialsEmp] = useState<Employee | null>(null);
+  const [viewingCredentialsUser, setViewingCredentialsUser] = useState<UserAccount | null>(null);
   const [showCredPassword, setShowCredPassword] = useState<boolean>(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
@@ -416,13 +459,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           shifts,
           users: currentUsers,
         }),
-        syncService.updateCredentials({
+        !customUsers ? syncService.updateCredentials({
           role: 'admin',
           username: cleanAdminUser,
           password: cleanAdminPass,
           pin: cleanAdminPin,
           displayName: directorName.trim(),
-        }),
+        }) : Promise.resolve(true),
       ]);
 
       setSettingsSavedSuccess(true);
@@ -444,7 +487,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setUPassword('123');
     setUPin('1234');
     setUDisplayName('');
-    setURole('supervisor');
+    setURole('employee');
     setUEmployeeId('');
     setShowUserForm(true);
   };
@@ -509,15 +552,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         (emp) =>
           (uEmployeeId && emp.id === uEmployeeId) ||
           (cleanUsername && emp.username?.toLowerCase() === cleanUsername.toLowerCase()) ||
-          (emp.name?.trim().toLowerCase() === cleanDisplayName.toLowerCase())
+          (cleanDisplayName && emp.name && isNameMatch(emp.name, cleanDisplayName)) ||
+          (cleanDisplayName && emp.name?.trim().toLowerCase() === cleanDisplayName.toLowerCase()) ||
+          (cleanUsername && emp.phone && cleanUsername === emp.phone)
       );
       if (targetEmp) {
-        await onSaveEmployee({
+        const updatedEmp = {
           ...targetEmp,
+          name: cleanDisplayName || targetEmp.name,
           username: cleanUsername,
           password: cleanPassword,
           pin: cleanPin,
-        });
+        };
+        await onSaveEmployee(updatedEmp);
+        const userIdx = updatedList.findIndex((u) => u.username === cleanUsername || (targetEmp.id && u.employeeId === targetEmp.id));
+        if (userIdx >= 0) {
+          updatedList[userIdx].employeeId = targetEmp.id;
+        }
         await syncService.updateCredentials({
           role: 'employee',
           employeeId: targetEmp.id,
@@ -580,7 +631,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setUsersList(updatedList);
     setShowUserForm(false);
     await handleSaveCompanySettings(undefined, updatedList);
-    triggerToast(`✅ تم حفظ وتحديث بيانات حساب "${cleanDisplayName}" بنجاح!`);
+    triggerToast(`✅ تم ربط وحفظ بيانات حساب "${cleanDisplayName}" مع النظام بنجاح!`);
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -1696,17 +1747,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <select
                           value={uEmployeeId}
                           onChange={(e) => {
-                            setUEmployeeId(e.target.value);
-                            const emp = employees.find((empItem) => empItem.id === e.target.value);
-                            if (emp && !uDisplayName) setUDisplayName(emp.name);
-                            if (emp && !uUsername) setUUsername(emp.phone || emp.name);
+                            const val = e.target.value;
+                            setUEmployeeId(val);
+                            const emp = employees.find((empItem) => empItem.id === val);
+                            if (emp) {
+                              setUDisplayName(emp.name);
+                              setUUsername(emp.username || emp.phone || emp.name);
+                              if (emp.password) setUPassword(emp.password);
+                              if (emp.pin) setUPin(emp.pin);
+                            }
                           }}
                           className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium outline-none focus:ring-1 focus:ring-emerald-600"
                         >
-                          <option value="">-- اختر الموظف --</option>
+                          <option value="">-- اختر الموظف لربط الحساب به (أو اتركه لإنشاء موظف جديد تلقائياً) --</option>
                           {employees.map((emp) => (
                             <option key={emp.id} value={emp.id}>
-                              {emp.name} ({emp.jobTitle})
+                              {emp.name} ({emp.jobTitle}) - {emp.username || emp.phone || 'بدون اسم مستخدم'}
                             </option>
                           ))}
                         </select>
@@ -1792,6 +1848,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <th className="p-3">الاسم المعروض</th>
                       <th className="p-3">اسم المستخدم</th>
                       <th className="p-3">نوع الصلاحية</th>
+                      <th className="p-3 text-center">بيانات الدخول</th>
                       <th className="p-3">رمز PIN</th>
                       <th className="p-3">الحالة</th>
                       <th className="p-3 text-center">الإجراءات</th>
@@ -1816,6 +1873,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           }`}>
                             {usr.role === 'admin' ? 'المدير العام' : usr.role === 'supervisor' ? 'المشرف الميداني' : 'بوابة موظف'}
                           </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setViewingCredentialsUser(usr);
+                              setShowCredPassword(false);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                            title="كشف اسم المستخدم وكلمة المرور"
+                          >
+                            <Key className="w-3.5 h-3.5 text-amber-600" />
+                            <span>كشف كلمة المرور</span>
+                          </button>
                         </td>
                         <td className="p-3 font-mono font-bold text-slate-600">
                           {usr.pin || '—'}
@@ -2409,122 +2480,136 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       </div>
 
-      {/* Quick Employee Credentials Reveal Modal (Admin Only) */}
-      {viewingCredentialsEmp && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 sm:p-6 flex flex-col gap-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
-                  <Key className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">بيانات دخول الموظف</h3>
-                  <p className="text-xs text-slate-500">{viewingCredentialsEmp.name} ({viewingCredentialsEmp.jobTitle || 'موظف'})</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewingCredentialsEmp(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Quick Credentials Reveal Modal (Admin Only - Supports both Employee and User Account) */}
+      {(viewingCredentialsEmp || viewingCredentialsUser) && (() => {
+        const credUser = viewingCredentialsUser;
+        const credEmp = viewingCredentialsEmp;
+        const credName = credUser ? credUser.displayName : credEmp?.name;
+        const credRole = credUser ? (credUser.role === 'admin' ? 'المدير العام' : credUser.role === 'supervisor' ? 'المشرف الميداني' : 'بوابة موظف') : (credEmp?.jobTitle || 'موظف');
+        const credUsername = credUser ? credUser.username : (credEmp?.username || credEmp?.phone || credEmp?.name);
+        const credPassword = credUser ? (credUser.password || '123') : (credEmp?.password || '123');
+        const credPin = credUser ? credUser.pin : credEmp?.pin;
 
-            <div className="flex flex-col gap-3">
-              {/* Username */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] font-bold text-slate-500">اسم المستخدم للدخول</div>
-                  <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5">
-                    {viewingCredentialsEmp.username || viewingCredentialsEmp.phone || viewingCredentialsEmp.name}
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 sm:p-6 flex flex-col gap-5">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                    <Key className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">بيانات دخول الحساب</h3>
+                    <p className="text-xs text-slate-500">{credName} ({credRole})</p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => copyToClipboard(viewingCredentialsEmp.username || viewingCredentialsEmp.phone || viewingCredentialsEmp.name, 'username')}
-                  className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  onClick={() => { setViewingCredentialsEmp(null); setViewingCredentialsUser(null); }}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                 >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>{copiedField === 'username' ? 'تم النسخ!' : 'نسخ'}</span>
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Password */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] font-bold text-slate-500">كلمة المرور (الباسورد)</div>
-                  <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5 tracking-wider">
-                    {showCredPassword ? (viewingCredentialsEmp.password || '123') : '••••••••'}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowCredPassword(!showCredPassword)}
-                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-                    title={showCredPassword ? 'إخفاء' : 'إظهار'}
-                  >
-                    {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(viewingCredentialsEmp.password || '123', 'pwd')}
-                    className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>{copiedField === 'pwd' ? 'تم النسخ!' : 'نسخ'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* PIN */}
-              {viewingCredentialsEmp.pin && (
+              <div className="flex flex-col gap-3">
+                {/* Username */}
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                   <div>
-                    <div className="text-[10px] font-bold text-slate-500">رمز PIN السريع</div>
-                    <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5 tracking-widest">
-                      {viewingCredentialsEmp.pin}
+                    <div className="text-[10px] font-bold text-slate-500">اسم المستخدم للدخول</div>
+                    <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5">
+                      {credUsername}
                     </div>
                   </div>
                   <button
                     type="button"
-                    onClick={() => copyToClipboard(viewingCredentialsEmp.pin || '', 'pin')}
+                    onClick={() => copyToClipboard(credUsername || '', 'username')}
                     className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    <span>{copiedField === 'pin' ? 'تم النسخ!' : 'نسخ'}</span>
+                    <span>{copiedField === 'username' ? 'تم النسخ!' : 'نسخ'}</span>
                   </button>
                 </div>
-              )}
-            </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  const empToEdit = viewingCredentialsEmp;
-                  setViewingCredentialsEmp(null);
-                  handleStartEditEmployee(empToEdit);
-                }}
-                className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>تغيير كلمة المرور أو البيانات</span>
-              </button>
+                {/* Password */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-500">كلمة المرور (الباسورد)</div>
+                    <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5 tracking-wider">
+                      {showCredPassword ? (credPassword || '123') : '••••••••'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowCredPassword(!showCredPassword)}
+                      className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                      title={showCredPassword ? 'إخفاء' : 'إظهار'}
+                    >
+                      {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(credPassword || '123', 'pwd')}
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{copiedField === 'pwd' ? 'تم النسخ!' : 'نسخ'}</span>
+                    </button>
+                  </div>
+                </div>
 
-              <button
-                type="button"
-                onClick={() => setViewingCredentialsEmp(null)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                إغلاق
-              </button>
+                {/* PIN */}
+                {credPin && (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-500">رمز PIN السريع</div>
+                      <div className="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5 tracking-widest">
+                        {credPin}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(credPin || '', 'pin')}
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{copiedField === 'pin' ? 'تم النسخ!' : 'نسخ'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (credUser) {
+                      setViewingCredentialsUser(null);
+                      handleOpenEditUser(credUser);
+                    } else if (credEmp) {
+                      setViewingCredentialsEmp(null);
+                      handleStartEditEmployee(credEmp);
+                    }
+                  }}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>تعديل الحساب وكلمة المرور</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setViewingCredentialsEmp(null); setViewingCredentialsUser(null); }}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  إغلاق
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Global Toast Notification */}
       {toastMessage && (

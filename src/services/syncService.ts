@@ -331,6 +331,15 @@ class SyncService {
         break;
       }
 
+      case 'EMPLOYEES_BULK_UPDATED': {
+        if (Array.isArray(payload)) {
+          this.data.employees = payload;
+          this.data.lastUpdated = Date.now();
+          this.notify();
+        }
+        break;
+      }
+
       case 'MONTH_RESET': {
         this.data.advances = [];
         this.data.attendance = {};
@@ -414,24 +423,26 @@ class SyncService {
     this.applyBrandingUpdate(branding);
 
     // 1. Push to Firestore company_branding document in background (never blocks UI)
-    try {
-      const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
-      setDoc(
-        brandingDocRef,
-        {
-          companyName: branding.companyName || this.data.settings.companyName || '',
-          directorName: branding.directorName || this.data.settings.directorName || '',
-          logoUrl: branding.logoUrl !== undefined ? branding.logoUrl : (this.data.settings.logoUrl || ''),
-          forceReset: branding.forceReset || false,
-          lastUpdated: Date.now(),
-          updatedByClientId: CLIENT_ID,
-        },
-        { merge: true }
-      ).catch((err) => {
-        console.warn('Background Firestore write branding warning:', err);
-      });
-    } catch (err) {
-      console.warn('Failed to write branding to Firestore:', err);
+    if (db) {
+      try {
+        const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
+        setDoc(
+          brandingDocRef,
+          {
+            companyName: branding.companyName || this.data.settings.companyName || '',
+            directorName: branding.directorName || this.data.settings.directorName || '',
+            logoUrl: branding.logoUrl !== undefined ? branding.logoUrl : (this.data.settings.logoUrl || ''),
+            forceReset: branding.forceReset || false,
+            lastUpdated: Date.now(),
+            updatedByClientId: CLIENT_ID,
+          },
+          { merge: true }
+        ).catch((err) => {
+          console.warn('Background Firestore write branding warning:', err);
+        });
+      } catch (err) {
+        console.warn('Failed to write branding to Firestore:', err);
+      }
     }
 
     // 2. Also push full doc to Firestore in background
@@ -637,6 +648,7 @@ class SyncService {
   // ================= 4. FIREBASE FIRESTORE SYNC (DUAL BACKUP) =================
 
   private async initFirestoreSync() {
+    if (!db) return;
     try {
       const docRef = doc(db, FIRESTORE_COLLECTION, FIRESTORE_DOC_ID);
 
@@ -707,6 +719,7 @@ class SyncService {
   }
 
   private async pushToFirestore(merge: boolean = false): Promise<void> {
+    if (!db) return;
     try {
       this.isWritingToFirestore = true;
 
@@ -1005,25 +1018,44 @@ class SyncService {
     if (Array.isArray(settings.users)) {
       settings.users.forEach((u) => {
         if (u.role === 'employee') {
+          const cleanUser = String(u.username || '').trim();
+          const cleanPass = u.password && String(u.password).trim() !== '' ? String(u.password).trim() : '123';
+          const cleanPin = u.pin && String(u.pin).trim() !== '' ? String(u.pin).trim() : '1234';
+          const cleanDisplay = String(u.displayName || cleanUser || 'موظف').trim();
+
           const emp = this.data.employees.find(
             (e) =>
               (u.employeeId && e.id === u.employeeId) ||
-              (u.username && e.username && e.username.toLowerCase() === u.username.toLowerCase()) ||
-              (u.displayName && e.name && e.name.trim().toLowerCase() === u.displayName.trim().toLowerCase())
+              (cleanUser && e.username && e.username.toLowerCase() === cleanUser.toLowerCase()) ||
+              (cleanDisplay && e.name && e.name.trim().toLowerCase() === cleanDisplay.toLowerCase()) ||
+              (cleanUser && e.phone && cleanUser === e.phone)
           );
           if (emp) {
-            if (u.password && String(u.password).trim() !== '') {
-              emp.password = String(u.password).trim();
-            }
-            if (u.pin && String(u.pin).trim() !== '') {
-              emp.pin = String(u.pin).trim();
-            }
-            if (u.username && String(u.username).trim() !== '') {
-              emp.username = String(u.username).trim();
-            }
-            if (u.active !== undefined) {
-              emp.active = u.active;
-            }
+            if (!u.employeeId) u.employeeId = emp.id;
+            emp.password = cleanPass;
+            emp.pin = cleanPin;
+            if (cleanUser) emp.username = cleanUser;
+            if (cleanDisplay) emp.name = cleanDisplay;
+            if (u.active !== undefined) emp.active = u.active;
+          } else {
+            const newEmpId = u.employeeId || `emp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+            u.employeeId = newEmpId;
+            this.data.employees.push({
+              id: newEmpId,
+              name: cleanDisplay,
+              jobTitle: 'موظف',
+              phone: '',
+              username: cleanUser,
+              password: cleanPass,
+              pin: cleanPin,
+              baseSalary: 3000000,
+              dailyWorkHours: 8,
+              monthlyWorkDays: 26,
+              absentDeductionRate: 1.0,
+              active: u.active !== false,
+              joinedDate: new Date().toISOString().split('T')[0],
+              avatarColor: 'bg-slate-700',
+            });
           }
         }
       });
@@ -1063,13 +1095,18 @@ class SyncService {
     this.saveLocal();
     this.notify();
     this.broadcastLocal('SETTINGS_UPDATED', this.data.settings);
+    this.broadcastLocal('EMPLOYEES_BULK_UPDATED', this.data.employees);
 
     // 4. Send POST to server for instant multi-device SSE broadcast
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: this.data.settings, clientId: CLIENT_ID }),
+        body: JSON.stringify({ 
+          settings: this.data.settings, 
+          employees: this.data.employees,
+          clientId: CLIENT_ID 
+        }),
       });
       if (res.ok) {
         const json = await res.json();
@@ -1096,13 +1133,15 @@ class SyncService {
         updatedByClientId: CLIENT_ID,
       };
 
-      try {
-        const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
-        setDoc(brandingDocRef, brandingPayload, { merge: true }).catch((err) => {
-          console.warn('Failed to write branding to Firestore:', err);
-        });
-      } catch (err) {
-        console.warn('Error preparing branding doc ref:', err);
+      if (db) {
+        try {
+          const brandingDocRef = doc(db, FIRESTORE_COLLECTION, 'company_branding');
+          setDoc(brandingDocRef, brandingPayload, { merge: true }).catch((err) => {
+            console.warn('Failed to write branding to Firestore:', err);
+          });
+        } catch (err) {
+          console.warn('Error preparing branding doc ref:', err);
+        }
       }
 
       try {
